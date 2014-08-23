@@ -14,29 +14,30 @@ function load_shapefile(data) {
 		assert(shp.uint32() == 5); // we only have polygons
 		shp.skip(4*8);
 		var num_parts = shp.uint32(), num_points = shp.uint32();
-		var parts = shp.uint32(num_parts+1);
-		parts[num_parts] = num_points;
-		shp.skip(-4);
-		shapes.push(parts);
-		points.push.apply(points, shp.float64(num_points*2));
+		var parts = shp.uint32(num_parts);
+		points.push.apply(points,shp.float64(num_points*2));
+		var start = 0;
+		for(var i=1; i<num_parts; i++) {
+			var end = parts[i];
+			shapes.push(end-start);
+			start = end;
+		}
+		shapes.push(num_points-start);
 		shp.seek(next);
 	}
 	for(var i in points)
 		points[i] *= Math.PI/180;
-	world_map.data = new Float32Array(points);
-	gl.bindBuffer(gl.ARRAY_BUFFER,world_map.vbo_vertices);
-	gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(world_map.data),gl.STATIC_DRAW);
+	gl.bindBuffer(gl.ARRAY_BUFFER,world_map.vbo);
+	gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points),gl.STATIC_DRAW);
 	gl.bindBuffer(gl.ARRAY_BUFFER,null);
 	world_map.shapes = shapes;
-	console.log(shapes);
 	world_map.start_time = now();
 }
 
 var world_map = {
-	vbo_vertices: gl.createBuffer(),
-	vbo_indices: gl.createBuffer(),
 	pMatrix: mat4_identity,
 	mvMatrix: mat4_identity,
+	vbo: gl.createBuffer(),
 	zoom: 1.5,
 	shapes: [],
 	start_time: null,
@@ -46,7 +47,6 @@ var world_map = {
 		"attribute vec2 vertex;\n"+
 		"uniform mat4 mvMatrix, pMatrix;\n"+
 		"uniform float t;\n"+
-		"uniform float spin;\n"+
 		"void main() {\n"+
 		"	float lat = vertex.y, lng = vertex.x;\n"+
 		"	vec3 merc = vec3(lng, 180.0/PI * log(tan(PI/4.0+lat*(PI/180.0)/2.0)), 0);\n"+
@@ -66,21 +66,15 @@ var world_map = {
 		if(!this.shapes)
 			return;
 		this.program(function() {
-				gl.disable(gl.CULL_FACE);
-				gl.bindBuffer(gl.ARRAY_BUFFER,this.vbo_vertices);
-				gl.vertexAttribPointer(this.program.vertex,2,gl.FLOAT,false,2*4,0);
-				// outlines on top
-				var ofs = 0, shapes = this.shapes;
-				for(var i in shapes) {
-					var polygons = shapes[i];
-					var start = 0;
-					for(var j=1; j<polygons.length; j++) {
-						var next = polygons[j];
-						var len = next-start;
-						gl.drawArrays(gl.LINE_STRIP,ofs,len);
-						ofs += len;
-						start = next;
-					}
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.vbo);
+				gl.vertexAttribPointer(this.program.vertex,2,gl.FLOAT,false,0,0);
+				var shapes = this.shapes;
+				var start = 0;
+				for(var shape in shapes) {
+					var len = shapes[shape];
+					assert(len > 0);
+					gl.drawArrays(gl.LINE_STRIP,start,len);
+					start += len;
 				}
 			}, {
 				pMatrix: this.pMatrix,
@@ -117,6 +111,6 @@ function onResize() {
 
 function render() {
 	if(loading) return;
-	gl.clear(gl.DEPTH_BIT|gl.COLOR_BIT);
+	gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
 	world_map.draw();
 }
