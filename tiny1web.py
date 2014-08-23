@@ -36,12 +36,17 @@ import tornado.ioloop
 import tornado.web
 from tornado.options import define, options, parse_command_line
 
+import tornado.websocket
+import update_map, geoloc
+ludum_dare = 'ludum-dare-27-warmup'
+
 options.define("port",default=8888,type=int)
-options.define("branch",default="HEAD")
+options.define("branch",type=str,default="HEAD")
 options.define("enable_upload",default=None,multiple=True,type=str)
 options.define("access",type=str,multiple=True)
 options.define("index_path",type=str,default="index.html")
 options.define("cookie_secret",type=str,default="barebones.js")
+options.define("origin",type=str,default="williame.github.io")
 
 log = []
 
@@ -229,6 +234,41 @@ class APIHandler(BaseHandler):
             self.write({"hash":body})
         else:
             raise tornado.web.HTTPError(404)
+            
+class LD30WebSocket(tornado.websocket.WebSocketHandler):
+    closed = False
+    def allow_draft76():
+    	    print "draft76 rejected"
+    	    return False
+    def open(self):
+        self.origin = self.request.headers.get("origin","")
+        self.userAgent = self.request.headers.get("user-agent")
+        print "connection",self.request.remote_ip, self.origin, self.userAgent
+        if not any(map(self.origin.startswith, (options.origin, "http://31.192.226.244:", "http://localhost:"))):
+            print "kicking out bad origin"
+            self.write_message('{"chat":[{"Will":"if you fork the code, you need to run your own server!"}]}')
+            self.close()
+    def on_message(self,message):
+        self.lastMessage = time.time()
+        try:
+            message = json.loads(message)
+            assert isinstance(message,dict)
+            print "GOT", message
+        except:
+            print "ERROR processing",message
+            traceback.print_exc()
+            self.close()
+    def write_message(self,msg):
+        if self.closed: return
+        try:
+            tornado.websocket.WebSocketHandler.write_message(self,msg)
+        except Exception as e:
+            print "ERROR sending join to",self.name,e
+            self.closed = True
+            self.close()
+    def on_close(self):
+        if self.closed: return
+        self.closed = True
 
 if __name__ == "__main__":
     home = os.getcwd()
@@ -239,9 +279,15 @@ if __name__ == "__main__":
         (r"/api/zip/%s.zip"%zipballFilename,ZipBallHandler),
         (r"/api/(.*)",APIHandler),
         (r"/upload",UploadHandler),
+        (r"/ws-ld30",LD30WebSocket),
         (r"/(.*)",MainHandler),
     ), cookie_secret = options.cookie_secret)
     _add_to_log(logging.INFO,"server","serving %s on port %d (zipball is /api/zip/%s.zip)",options.branch,options.port,zipballFilename)
+
+    # geoloc.load_ip_locations()
+    # update_map.load_data()
+    # update_map.tick(ludum_dare)
+
     application.listen(options.port)
     try:
         tornado.ioloop.IOLoop.instance().start()

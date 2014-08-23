@@ -15,6 +15,7 @@ function init(canvas) {
 				alpha: false,
 				premultipliedAlpha: false,
 				stencil: true,
+				antialias: true,
 			};
 			gl = canvas.getContext("webgl",params) || canvas.getContext("experimental-webgl",params);
 		} catch(e) {

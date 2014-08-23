@@ -1,12 +1,44 @@
 
-var	deg2rad = Math.PI/180,
-	maxZoom = 80, minZoom = 20,
-	zoom = 70;
-	
+var server_websocket;
+
+function load_shapefile(data) {
+	var shp = new BinaryDataReader(data);
+	shp.seek(24);
+	var len = shp.swap32(shp.uint32()) * 2;
+	assert(len == data.byteLength);
+	shp.seek(100);
+	var points = [], shapes = [];
+	while(shp.ofs < len) {
+		shp.skip(4);
+		var next = shp.ofs + (2 * shp.swap32(shp.uint32())) + 4;
+		assert(shp.uint32() == 5); // we only have polygons
+		shp.skip(4*8);
+		var num_parts = shp.uint32(), num_points = shp.uint32();
+		var parts = shp.uint32(num_parts+1);
+		parts[num_parts] = num_points;
+		shp.skip(-4);
+		shapes.push(parts);
+		points.push.apply(points, shp.float64(num_points*2));
+		shp.seek(next);
+	}
+	for(var i in points)
+		points[i] *= Math.PI/180;
+	world_map.data = new Float32Array(points);
+	gl.bindBuffer(gl.ARRAY_BUFFER,world_map.vbo_vertices);
+	gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(world_map.data),gl.STATIC_DRAW);
+	gl.bindBuffer(gl.ARRAY_BUFFER,null);
+	world_map.shapes = shapes;
+	console.log(shapes);
+	world_map.start_time = now();
+}
+
 var world_map = {
-	vbo: gl.createBuffer(),
+	vbo_vertices: gl.createBuffer(),
+	vbo_indices: gl.createBuffer(),
 	pMatrix: mat4_identity,
 	mvMatrix: mat4_identity,
+	zoom: 1.5,
+	shapes: [],
 	start_time: null,
 	program: Program(
 		"precision mediump float;\n"+
@@ -14,11 +46,16 @@ var world_map = {
 		"attribute vec2 vertex;\n"+
 		"uniform mat4 mvMatrix, pMatrix;\n"+
 		"uniform float t;\n"+
+		"uniform float spin;\n"+
 		"void main() {\n"+
 		"	float lat = vertex.y, lng = vertex.x;\n"+
-		"	vec3 globe = vec3(-cos(lat)*cos(lng),sin(lat),cos(lat)*sin(lng));\n"+
 		"	vec3 merc = vec3(lng, 180.0/PI * log(tan(PI/4.0+lat*(PI/180.0)/2.0)), 0);\n"+
-		"	gl_Position = pMatrix * mvMatrix * vec4(mix(globe,merc,t),1.0);\n"+
+		"	vec4 pos = vec4(merc,1.0);\n"+
+		"	if(t < 1.0) {\n"+
+		"		vec3 globe = vec3(-cos(lat)*cos(lng),sin(lat),cos(lat)*sin(lng));\n"+
+		"		pos = vec4(mix(globe,merc,t),1.0);\n"+
+		"	}\n"+
+		"	gl_Position = pMatrix * mvMatrix * pos;\n"+
 		"}\n",
 		"precision mediump float;\n"+
 		"uniform vec4 colour;\n"+
@@ -26,53 +63,52 @@ var world_map = {
 		"	gl_FragColor = colour;\n"+
 		"}\n"),
 	draw: function() {
-		if(!this.data && !load_world_map())
+		if(!this.shapes)
 			return;
 		this.program(function() {
-				gl.bindBuffer(gl.ARRAY_BUFFER,this.vbo);
+				gl.disable(gl.CULL_FACE);
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.vbo_vertices);
 				gl.vertexAttribPointer(this.program.vertex,2,gl.FLOAT,false,2*4,0);
-				var ofs = 0, parts = this.data.ofs;
-				for(var part=0; part<parts.length; part++) {
-					var start = ofs;
-					ofs += parts[part];
-					gl.drawArrays(gl.LINE_STRIP,start,ofs-start);
+				// outlines on top
+				var ofs = 0, shapes = this.shapes;
+				for(var i in shapes) {
+					var polygons = shapes[i];
+					var start = 0;
+					for(var j=1; j<polygons.length; j++) {
+						var next = polygons[j];
+						var len = next-start;
+						gl.drawArrays(gl.LINE_STRIP,ofs,len);
+						ofs += len;
+						start = next;
+					}
 				}
 			}, {
 				pMatrix: this.pMatrix,
 				mvMatrix: this.mvMatrix,
 				colour: [0, 1, 0, 1],
-				t: Math.min(1, (now()-this.start_time) / 3000),
+				t: (now()-this.start_time) / 3000,
 			}, this);
-		var ofs = 0, parts = this.data.ofs;
-		for(var part=0; part<parts.length; part++) {
-			var start = ofs;
-			ofs += parts[part];
-			gl.drawArrays(gl.LINE_STRIP,start,ofs-start);
-		}
 	},
 };
 
 function new_game() {
-	loading = false;
 	onResize();
-}
-
-function load_world_map() {
-	world_map.data = getFile("json","data/world.json");
-	if(world_map.data) {
-		for(var i in world_map.data.pts)
-			world_map.data.pts[i] *= deg2rad;
-		gl.bindBuffer(gl.ARRAY_BUFFER,world_map.vbo);
-		gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(world_map.data.pts),gl.STATIC_DRAW);
-		gl.bindBuffer(gl.ARRAY_BUFFER,null);
-		world_map.start_time = now();
-		return true;
+	loading = false;
+	server_websocket = create_websocket_connection(function(evt) {
+			console.log("GOT", evt);
+	});
+	try {
+		var aliasedLineRange = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
+		if(aliasedLineRange)
+			gl.lineWidth(Math.min(Math.max(aliasedLineRange[0], 3), aliasedLineRange[1]));
+	} catch(error) {
+		console.log("ERROR setting aliased line:", error);
 	}
-	return false;
+	loadFile("ArrayBuffer","external/TM_WORLD_BORDERS_SIMPL-0.3/TM_WORLD_BORDERS_SIMPL-0.3.shp",load_shapefile);
 }
 
 function onResize() {
-	var	zoomFactor = 0.3+(zoom-minZoom)/(maxZoom-minZoom),
+	var	zoomFactor = world_map.zoom,
 		xaspect = canvas.width>canvas.height? canvas.width/canvas.height: 1,
 		yaspect = canvas.width<canvas.height? canvas.height/canvas.width: 1,
 		ortho = [-zoomFactor*xaspect,zoomFactor*xaspect,-zoomFactor*yaspect,zoomFactor*yaspect];
@@ -80,6 +116,7 @@ function onResize() {
 }
 
 function render() {
+	if(loading) return;
 	gl.clear(gl.DEPTH_BIT|gl.COLOR_BIT);
 	world_map.draw();
 }

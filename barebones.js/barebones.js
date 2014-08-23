@@ -53,13 +53,14 @@ var fail = fail || function(error) {
 	fail.error = error;
 	console.log("error",error,"at",error.stack);
 	if(!isInWebWorker) {
-		window.setTimeout(function() { window.location.reload(false); },2500);
 		if(isOnGithubPages && !isOnGithubPages() && isOnFileSystem && !isOnFileSystem()) {
 			var doc = new XMLHttpRequest();
 			doc.open("POST","/api/report_error",true);
 			doc.overrideMimeType("text/plain");
 			doc.onerror = function() {};
-			doc.send(""+error+"\n"+error.stack);		
+			doc.send(""+error+"\n"+error.stack);	
+			if(!isLocalHost || !isLocalHost())
+				window.setTimeout(function() { window.location.reload(false); },2500);
 		}
 		var div = window.document.getElementById("error");
 		if(div) {

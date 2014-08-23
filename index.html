@@ -51,8 +51,9 @@ function game() {
 	var loader = Waiter(function() {
 		new_game();
 	});
-	loadFile("json","data/world.json",loader());
 	loadFile("javascript","game.js",loader());
+	loadFile("javascript","websocket.js",loader());
+	loadFile("javascript","external/delaunay.js",loader());
 }
 
 </script>

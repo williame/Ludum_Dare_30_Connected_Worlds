@@ -14,13 +14,14 @@ def load_ip_locations():
     #            is_satellite_provider)
     global ips, locations
     ips = []
-    if not os.path.exists('GeoLite2-City-CSV.zip'):
-        print '=== DOWNLOADING GeoLite2 CSV ==='
-        data = urllib2.urlopen('http://geolite.maxmind.com/download/geoip/database/GeoLite2-City-CSV.zip').read()
-        with open('GeoLite2-City-CSV.zip', 'w') as f:
+    filename = 'GeoLite2-City-CSV.zip'
+    if not os.path.exists(filename):
+        print '=== DOWNLOADING', filename, '==='
+        data = urllib2.urlopen('http://geolite.maxmind.com/download/geoip/database/%s' % filename).read()
+        with open(filename, 'w') as f:
             f.write(data)
-    print '=== LOADING geoLite2 CSV ==='
-    with zipfile.ZipFile(, 'r') as zf:
+    print '=== LOADING', filename, '==='
+    with zipfile.ZipFile(filename, 'r') as zf:
         f = zf.open('GeoLite2-City-CSV_20140805/GeoLite2-City-Locations.csv', 'r').read().split('\n')
         for line in f[1:-1]:
             line = line.split(',')

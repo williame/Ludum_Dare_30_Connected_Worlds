@@ -10,6 +10,15 @@ function isLocalHost() {
 	return isOnFileSystem() || window.location.hostname == "localhost";
 }
 
+function getParameterByName(name) {
+	name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
+	var	regexS = "[\\?&]" + name + "=([^&#]*)",
+		regex = new RegExp(regexS),
+		results = regex.exec(window.location.search);
+	if(results == null) return "";
+	return decodeURIComponent(results[1].replace(/\+/g, " "));
+}
+
 function Waiter(readyCallback) {
 	var waiter = function(msg) {
 		waiter.outstanding.push(msg);
@@ -200,7 +209,8 @@ function BinaryDataReader(arrayBuffer) {
 			BinaryDataReader.pow2[i] = Math.pow(2,i);
 			BinaryDataReader.one_over_pow2[i] = 1 / BinaryDataReader.pow2[i];
 		}
-		BinaryDataReader.float1 = new Float32Array(1);
+		BinaryDataReader.float32_1 = new Float32Array(1);
+		BinaryDataReader.float64_1 = new Float64Array(1);
 		BinaryDataReader.inited = true;
 	}
 };
@@ -215,24 +225,22 @@ BinaryDataReader.prototype = {
 		this.ofs += len;
 		return this;
 	},
-	_read: function(Type,numElements) {
-		numElements = numElements || 1;
-		assert(this.ofs + Type.BYTES_PER_ELEMENT*numElements <= this.len);
-		if(numElements == 1) {
-			var ret = 0;
-			for(var i=0; i<Type.BYTES_PER_ELEMENT; i++)
-				ret |= this.buffer[this.ofs++] << (i*8);
-			return ret;
-		}
-		var raw = new Type(numElements),
-			stop = this.ofs + raw.byteLength;
-		raw.set(this.buffer.subarray(this.ofs,stop));
-		this.ofs = stop;
-		return raw;
+	_read: function(type,len) {
+		var unbox = !len;
+		len = len || 1;
+		var end = this.ofs + type.BYTES_PER_ELEMENT * len;
+		assert(end <= this.len);
+		var as_type = new type(this.array.slice(this.ofs, end));
+		this.ofs = end;
+		return unbox? as_type[0]: as_type;
 	},
 	uint8: function(len) { return this._read(Uint8Array,len); },
 	uint16: function(len) { return this._read(Uint16Array,len); },
 	uint32: function(len) { return this._read(Uint32Array,len); },
+	swap32: function(v) {
+		return ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v >> 8) & 0xff00) | ((v >> 24) & 0xff);
+	},
+	int32: function(len) { return this._read(Int32Array,len); },
 	strfixed: function(len) {
 		assert(this.ofs + len <= this.len);
 		var s = "";
@@ -250,9 +258,10 @@ BinaryDataReader.prototype = {
 		return s;
 	},
 	float32: function(len) {
+		return this._read(Float32Array,len); //###
 		// do our own unpacking (http://www.terrybutler.co.uk/downloads/web/webgl-md2.htm adapted, speeded up 1000x)
 		len = len || 1;
-		var as_float = (len > 1? new Float32Array(len): BinaryDataReader.float1);
+		var as_float = (len > 1? new Float32Array(len): BinaryDataReader.float32_1);
 		for(var j=0; j<len; j++) {
 			var value = this.uint32();
 			var sign = (value >> 31) & 0x1;
@@ -277,5 +286,6 @@ BinaryDataReader.prototype = {
 		if(len>1) return as_float;
 		return as_float[0];
 	},
+	float64: function(len) { return this._read(Float64Array,len); },		
 };
 

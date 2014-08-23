@@ -1,4 +1,4 @@
-import urllib2, re, sys, json, collections, datetime, time
+import urllib2, re, sys, json, collections, datetime, time, os
 
 regex_authors = re.compile(r'GLatLng[(]([-]?\d+[.][-]?\d+)[,](\d+[.]\d+).+author/([^/]+)')
 regex_author_entries = re.compile(r'../../([^/]+)/\?action=preview\&uid=(\d+)')
@@ -19,22 +19,25 @@ comps = collections.defaultdict(lambda: len(comps))
 authors_by_username = {}
 authors_by_uid = {}
 
-def save_data(filename):
-    print "saving to", filename
-    with open(filename, 'w') as f:
+data_filename = 'data.json'
+
+def save_data():
+    print "saving to", data_filename
+    with open(data_filename, 'w') as f:
         json.dump({
                 "competitions": comps,
                 "authors": authors_by_uid.values(),
             }, f, indent=2)
         
-def load_data(filename):
-    print "loading from", filename
-    global ludum_dare_id
-    with open(filename, 'r') as f:
+def load_data():
+    if not os.path.exists(data_filename):
+        print "(first run!)"
+        return
+    print "loading from", data_filename
+    with open(data_filename, 'r') as f:
         data = json.load(f, object_hook=DotDict)
         for comp, id in data.competitions.items():
             comps[comp] = id
-        ludum_dare_id = comps[ludum_dare]
         for author in data.authors:
             if "commenters" in author:
                 author.commenters = {int(i): c for i, c in author.commenters.items()}
@@ -77,7 +80,7 @@ def update_from_world_map():
         author.position = (float(lat), float(lng))
     return new
             
-def update_from_comp_listings(ludum_dare = 'ludum-dare-27-warmup'):
+def update_from_comp_listings(ludum_dare):
     print "=== UPDATING FROM COMP LISTINGS", ludum_dare, "==="
     ludum_dare_id = comps[ludum_dare]
     def date_parse(d):
@@ -153,3 +156,7 @@ def update_from_comp_listings(ludum_dare = 'ludum-dare-27-warmup'):
                 author.commenters[ludum_dare_id] = commenters
                 new = True
     return new
+    
+def tick(ludum_dare):
+    if bool(update_from_world_map()) | bool(update_from_comp_listings(ludum_dare)):
+        save_data()
