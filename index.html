@@ -44,13 +44,11 @@ body { border:0px;margin:0px;padding:0px; background-color: black; color: white;
 .error { float: top; background: yellow; color: red; margin: 2px; padding: 2px; }
 #main-canvas { width:100%; height:100%;border:0px;margin:0px;padding:0px; }
 </style>
-<script type="text/javascript" src="external/p2.js"></script>
 <script type="text/javascript" src="barebones.js/barebones.js"></script>
 <script type="text/javascript">
 
 function game() {
 	var loader = Waiter(function() {
-		splash.dismiss();
 		new_game();
 	});
 	loadFile("json","data/world.json",loader());

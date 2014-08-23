@@ -158,23 +158,6 @@ function init(canvas) {
 				if(!canvas.tabIndex <= 0)
 					canvas.tabIndex = 1;
 				canvas.focus();
-				// splash
-				var splashCtrl = new UIComponent();
-				loadFile("image","data/logo.png",function() { splashCtrl.dirty(); });
-				splashCtrl.setSize([canvas.width,canvas.height]);
-				splashCtrl.draw = function(ctx) {
-					var font = splashCtrl.getFont(), alpha = splash.alpha;
-					drawLogo(ctx,alpha);
-					if(!font) return;
-					var	label = "loading...",
-						sz = ctx.measureText(font,label),
-						x = (canvas.width-sz[0])*0.5,
-						y = (canvas.height-sz[1])*0.75;
-					ctx.fillRoundedRect([0.7,0.7,0,0.9*alpha],3,x,y,x+sz[0],y+sz[1]);
-					ctx.drawTextOutlined(font,[1,1,1,alpha],[0,0,0,alpha],x-1,y-1,label);
-				};
-				splash = new UIWindow(false,splashCtrl);
-				splash.alpha = 1;
 				window.requestAnimFrame(loadLoop);
 				// hand over to game
 				window.focus();
@@ -252,7 +235,8 @@ function loadLoop() {
 	try {
 		if(!loading || (window.isLoadingComplete && window.isLoadingComplete())) {
 			loading = false;
-			splash.fade = now();
+			if(splash)
+				splash.fade = now();
 			loop();
 			return;
 		}
