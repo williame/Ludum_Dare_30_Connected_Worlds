@@ -48,7 +48,7 @@ function load_shapefile(data) {
 }
 
 var ticks = [];
-var ip_pos, user, users = {};
+var ip_pos, user = {}, users = {};
 var last_draw = now();
 var ctx = new UIContext();
 var world_map = {
@@ -126,11 +126,14 @@ function update_ctx() {
 	ctx.inject(function() { world_map.draw(); });
 	for(var user in users) {
 		user = users[user];
-		var p = [user.position[1], user.position[0], 0];
-		p = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, p));
-		var x = p[0], y = p[1];
-		user.screen_pos = [x, y];
-		ctx.drawRect(pin,OPAQUE,x-pin.width/2,y-pin.height,x+pin.width/2,y,0,0,1,1);
+		if(user.position) {
+			var p = [user.position[1], user.position[0], 0];
+			p = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, p));
+			var x = p[0], y = p[1];
+			user.screen_pos = [x, y];
+			var colour = (user == window.user)? [0,1,0,1]: OPAQUE;
+			ctx.drawRect(pin,colour,x-pin.width/2,y-pin.height,x+pin.width/2,y,0,0,1,1);
+		}
 	}
 	ctx.finish();
 }
@@ -139,7 +142,7 @@ function new_game() {
 	loading = true;
 	canvas.setAttribute('tabindex','0');
 	canvas.focus();
-	gl.clearColor(0.7,0.8,1,1);
+	gl.clearColor(0.1,0.3,0.6,1);
 	onResize();
 	loadFile("image", "data/pin.png", update_ctx);
 	try {
@@ -150,116 +153,6 @@ function new_game() {
 		console.log("ERROR setting aliased line:", error);
 	}
 	loadFile("ArrayBuffer","external/TM_WORLD_BORDERS_SIMPL-0.3/TM_WORLD_BORDERS_SIMPL-0.3.shp",load_shapefile);
-}
-
-function create_anchor(title, callback) {
-	var a = document.createElement('a');
-	a.appendChild(create_text(title));
-	a.addEventListener('click',callback);
-	return a;
-}
-
-function create_text(text, style) {
-	text = text.replace(/&nbsp;/g,"\u00A0");
-	text = document.createTextNode(text);
-	if(style) {
-		var node = document.createElement('span');
-		for(var s in style)
-			node.style[s] = style[s];
-		node.appendChild(text);
-		return node;
-	}
-	return text;
-}
-
-function slide_anim(element, appear, after, speed) {
-	var height = element.clientHeight;
-	if(appear)
-		element.style.marginBottom = "-" + height + "px";
-	var last = now();
-	var slide = function() {
-		var t = now() - last;
-		last += t;
-		if(!appear) t = -t;
-		var margin = parseInt(element.style.marginBottom);
-		margin = Math.min(0, margin + t * (speed || 0.5));
-		element.style.marginBottom = "" + margin + "px";
-		if((appear && margin) || (!appear && margin > -height))
-			ticks.push(slide);
-		else if(after)
-			after();
-	};
-	ticks.push(slide);
-}
-
-function prompt_intro() {
-	var div = document.createElement('div');
-	div.className = "bottom";
-	div.appendChild(create_text("Hello Ludum Darer!"));
-	div.appendChild(document.createElement('br'));
-	div.appendChild(create_text("You inhabit a strange world, an underworld..."));
-	div.appendChild(document.createElement('br'));
-	div.appendChild(create_text("You inhabit the online world of "));
-	div.appendChild(create_text("Ludum Dare!&nbsp;",{fontStyle:'italic', color:'pink'}));
-	div.appendChild(create_anchor("I ADMIT IT", function() {
-		slide_anim(div, false, function() {
-			while(div.firstChild) div.removeChild(div.firstChild);
-			div.appendChild(create_text("There's this thing called the&nbsp;"));
-			div.appendChild(create_text("real",{fontStyle:'italic'}));
-			div.appendChild(create_text("&nbsp;world too... ever heard of it?"));
-			div.appendChild(document.createElement('br'));
-			div.appendChild(create_text("This&nbsp;"));
-			div.appendChild(create_text("meta",{fontStyle:'italic'}));
-			div.appendChild(create_text("-game connects the two...&nbsp;"));
-			div.appendChild(create_anchor("Cool! Let's play!", function() {
-				div.parentNode.removeChild(div);
-				connect_to_server();
-			}));
-			slide_anim(div, true);
-		});
-	}));
-	div.appendChild(create_text('&nbsp;'));
-	div.appendChild(create_anchor("What's Ludum Dare?", function() {
-		slide_anim(div, false, function() {
-			while(div.firstChild) div.removeChild(div.firstChild);
-			div.appendChild(create_text("You have to have played Ludum Dare 30 in order to be able to play this game.&nbsp;"));
-			div.appendChild(create_anchor("show me Ludum Dare!", function() {
-				report_info("user doesn't play LD");
-				window.location = "http://www.ludumdare.com/compo";
-			}));
-			slide_anim(div, true);
-		});
-	}));
-	document.body.appendChild(div);
-	slide_anim(div, true, function() {
-		loadFile("image", "data/map1.jpg", update_ctx);
-	});
-}
-
-function prompt_for_user() {
-	var div = document.createElement('div');
-	div.className = "bottom";
-	if(ip_pos && ip_pos[2]) {
-		div.appendChild(create_text("Are you in "+ip_pos[2][4] + "?&nbsp;"));
-		div.appendChild(create_anchor("YES", function() {
-			slide_anim(div, false, function() {
-				div.parentNode.removeChild(div);
-				canvas.focus();
-			});
-		}));
-		div.appendChild(create_text('&nbsp;'));
-		div.appendChild(create_anchor("NO", function() {
-			slide_anim(div, false, function() {
-				div.parentNode.removeChild(div);
-				canvas.focus();
-			});
-		}));
-
-	} else {
-		div.appendChild(create_text("Hmm, I don't who you are!  Can you help me?"));
-	}
-	document.body.appendChild(div);
-	slide_anim(div, true);
 }
 
 function connect_to_server() {
@@ -283,6 +176,20 @@ function connect_to_server() {
 				ip_pos = data.ip_lookup;
 				go_to(x,y,0.3);
 			}
+			if(data.user) {
+				users[data.user.uid] = data.user;
+				data.user.full = true;
+				if(data.user.position) {
+					data.user.position = to_mercator(data.user.position[0],data.user.position[1]);
+					update_ctx();
+				}
+				if(data.token == "guess") {
+					user = data.user;
+					prompt_position(user.name);
+				}
+			} else if(data.token == "guess") {
+				prompt_unknown_user(data.uid || data.username);
+			}
 			for(var name in data.chat)
 				UI.addMessage(10,name,data.chat[name]);
 			update_ctx();
@@ -299,8 +206,13 @@ function go_to(x,y,zoom,speed) {
 	if(anim_path.length == 1)
 		p[0] = now();
 	zoom = clamp_zoom(zoom || p[3]);
-	var duration = vec2_length([x-p[1],y-p[2]]) * (speed || 1000);
-	anim_path.push([p[0]+duration,x,y,zoom]);
+	if(anim_path.length == 3) {
+		anim_path[2] = [p[0],x,y,zoom];
+	} else {
+		var distance = vec2_length([x-p[1],y-p[2]]);
+		var duration = distance? distance * (speed || 1000): (speed || 1000);
+		anim_path.push([p[0]+duration,x,y,zoom]);
+	}
 }
 
 function current_anim() {
@@ -352,22 +264,39 @@ function onMouseWheel(evt, delta) {
 }
 
 function onKeyDown(evt) {
-	if(!debug) return;
-	var tweak = evt.shiftKey? 0.02: 1;
-	switch(evt.which) {
-	case 87: mercator_bg[1] += tweak; break; // W
-	case 83: mercator_bg[1] -= tweak; break; // S
-	case 65: mercator_bg[3] += tweak; break; // A
-	case 68: mercator_bg[3] -= tweak; break; // D
-	case 73: mercator_bg[0] -= tweak; break; // I
-	case 75: mercator_bg[0] += tweak; break; // K
-	case 74: mercator_bg[2] -= tweak; break; // J
-	case 76: mercator_bg[2] += tweak; break; // L
-	default:
-		return;
+	if(is_interactive()) {
+		switch(evt.which) {
+		case 187: // +
+			var last = anim_path[anim_path.length-1];
+			var zoom = clamp_zoom(last[3] - 0.2);
+			if(zoom != last[3])
+				go_to(last[1],last[2],zoom,1000);
+			break;
+		case 189: // -
+			var last = anim_path[anim_path.length-1];
+			var zoom = clamp_zoom(last[3] + 0.2);
+			if(zoom != last[3])
+				go_to(last[1],last[2],zoom,1000);
+			break;
+		}
 	}
-	console.log("mercator_bg",mercator_bg[0],mercator_bg[1],mercator_bg[2],mercator_bg[3]);
-	update_ctx();
+	if(debug) {
+		var tweak = evt.shiftKey? 0.02: 1;
+		switch(evt.which) {
+		case 87: mercator_bg[1] += tweak; break; // W
+		case 83: mercator_bg[1] -= tweak; break; // S
+		case 65: mercator_bg[3] += tweak; break; // A
+		case 68: mercator_bg[3] -= tweak; break; // D
+		case 73: mercator_bg[0] -= tweak; break; // I
+		case 75: mercator_bg[0] += tweak; break; // K
+		case 74: mercator_bg[2] -= tweak; break; // J
+		case 76: mercator_bg[2] += tweak; break; // L
+		default:
+			return;
+		}
+		console.log("mercator_bg",mercator_bg[0],mercator_bg[1],mercator_bg[2],mercator_bg[3]);
+		update_ctx();
+	}
 }
 
 function onMouseDown(evt) {
@@ -382,11 +311,13 @@ function onMouseMove(evt) {
 	var best, best_score;
 	for(var user in users) {
 		user = users[user];
-		var x = user.screen_pos[0], y = user.screen_pos[1];
-		var d = vec2_distance([x, y-16], pos);
-		if(!best || d < best_score) {
-			best = user;
-			best_score = d;
+		if(user.screen_pos) {
+			var x = user.screen_pos[0], y = user.screen_pos[1];
+			var d = vec2_distance([x, y-16], pos);
+			if(!best || d < best_score) {
+				best = user;
+				best_score = d;
+			}
 		}
 	}
 	if(best && best_score < 10)
@@ -418,7 +349,6 @@ function render() {
 		else if(keys[39] && !keys[37]) // right
 			x = 0.005 * elapsed;
 		if(x || y) {
-			console.log(x,y);
 			anim_path[0][1] += x * anim_path[0][3];
 			anim_path[0][2] += y * anim_path[0][3];
 			onResize();
