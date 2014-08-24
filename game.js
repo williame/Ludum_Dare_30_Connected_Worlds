@@ -129,6 +129,8 @@ function update_ctx() {
 
 function new_game() {
 	loading = true;
+	canvas.setAttribute('tabindex','0');
+	canvas.focus();
 	gl.clearColor(0.7,0.8,1,1);
 	onResize();
 	loadFile("image", "data/pin.png", update_ctx);
@@ -181,13 +183,18 @@ function prompt_for_user() {
 		div.appendChild(create_nbsp());
 		div.appendChild(create_anchor("YES", function() {
 			slide_anim(div, false, function() {
-				console.log("slide off done");
 				div.parentNode.removeChild(div);
+				canvas.focus();
 			});
 		}));
 		div.appendChild(create_nbsp());
-		div.appendChild(create_anchor("NO", function() { console.log("NO!") }));
-		
+		div.appendChild(create_anchor("NO", function() {
+			slide_anim(div, false, function() {
+				div.parentNode.removeChild(div);
+				canvas.focus();
+			});
+		}));
+
 	} else {
 		div.appendChild(document.createTextNode("Hmm, I don't who you are!  Can you help me?"));
 	}
