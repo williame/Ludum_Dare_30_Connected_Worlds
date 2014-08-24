@@ -35,7 +35,7 @@ function load_shapefile(data) {
 	world_map.start_time = now();
 }
 
-var users = {};
+var ip_pos, user, users = {};
 var foreground = new UIContext();
 var world_map = {
 	pMatrix: mat4_identity,
@@ -116,7 +116,7 @@ function make_splash() {
 			((canvas.offsetHeight-panel.height()) / 2) | 0]);
 	};
 	var win = new UIWindow(false,panel);
-	win.show();
+	//win.show();
 }
 
 function new_game() {
@@ -136,25 +136,39 @@ function new_game() {
 	loading = false;
 }
 
+function prompt_for_user() {
+	var panel = new UIPanel([
+			new UILabel("who are you?"),
+	]);
+	panel.afterLayout = function() {
+		panel.setPos([((canvas.offsetWidth-panel.width()) / 2) | 0,
+			((canvas.offsetHeight-panel.height()) / 2) | 0]);
+	};
+	var win = new UIWindow(false,panel);
+	win.show();
+}
+
 function connect_to_server() {
 	server_websocket = create_websocket_connection(function(evt) {
 			data = JSON.parse(evt.data);
 			console.log("got", data);
 			for(var i in data.locations) {
 				var loc = data.locations[i];
-				var uid = loc[0], x = loc[1][1], y = loc[1][0], targets = loc[2];
-				var user = users[uid] = users[uid] || {};
-				user.uid = uid;
-				y *= DEG2RAD;
-				y = 180.0/Math.PI * Math.log(Math.tan(Math.PI/4.0+y*DEG2RAD/2.0));
+				var uid = loc[0], x = loc[1][0], y = loc[1][1], targets = loc[2];
+				var u = users[uid] = users[uid] || {};
+				u.uid = uid;
 				x *= DEG2RAD;
-				user.position = [y, x];
-				user.targets = targets;
+				x = 180.0/Math.PI * Math.log(Math.tan(Math.PI/4.0+x*DEG2RAD/2.0));
+				y *= DEG2RAD;
+				u.position = [x, y];
+				u.targets = targets;
+				if(!user)
+					prompt_for_user();
 			}
 			if(data.ip_lookup) {
 				var x = data.ip_lookup[7] * DEG2RAD;
 				var y = data.ip_lookup[6] * DEG2RAD;
-				console.log("GO TO",x,y);
+				ip_pos = [x, y];
 				go_to(x,y,0.3);
 			}
 			for(var name in data.chat)
