@@ -36,6 +36,7 @@ function load_shapefile(data) {
 }
 
 var ip_pos, user, users = {};
+var last_draw = now();
 var foreground = new UIContext();
 var world_map = {
 	pMatrix: mat4_identity,
@@ -102,6 +103,7 @@ function update_foreground() {
 		var p = [user.position[1], user.position[0], 0];
 		p = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, p));
 		var x = p[0], y = p[1];
+		user.screen_pos = [x, y];
 		foreground.drawRect(pin,OPAQUE,x-pin.width/2,y-pin.height,x+pin.width/2,y,0,0,1,1);
 	}
 	foreground.finish();
@@ -137,15 +139,24 @@ function new_game() {
 }
 
 function prompt_for_user() {
-	var panel = new UIPanel([
-			new UILabel("who are you?"),
-	]);
-	panel.afterLayout = function() {
-		panel.setPos([((canvas.offsetWidth-panel.width()) / 2) | 0,
-			((canvas.offsetHeight-panel.height()) / 2) | 0]);
-	};
-	var win = new UIWindow(false,panel);
-	win.show();
+	var width = 640, height = 480;
+	var div = document.createElement('div');
+	div.style.position = "fixed";
+	div.style.backgroundImage = "url(data/ctrl_icons.png)";
+	div.style.bottom = "0%";
+	div.style.width = "100%";
+	div.style.fontSize = "x-large";
+	div.style.fontWeight = "bold";
+	div.style.fontFamily = "Fantasy, 'Comic Sans', Serif";
+	div.style.margin = "10px";
+	div.appendChild(document.createTextNode("Hello!"));
+	div.appendChild(document.createElement('br'));
+	if(ip_pos && ip_pos[2]) {
+		div.appendChild(document.createTextNode("Are you in "+ip_pos[2][4] + "?"));
+	} else {
+		div.appendChild(document.createTextNode("Hmm, I don't who you are!  Can you help me?"));
+	}
+	document.body.appendChild(div);
 }
 
 function connect_to_server() {
@@ -168,7 +179,7 @@ function connect_to_server() {
 			if(data.ip_lookup) {
 				var x = data.ip_lookup[7] * DEG2RAD;
 				var y = data.ip_lookup[6] * DEG2RAD;
-				ip_pos = [x, y];
+				ip_pos = data.ip_lookup;
 				go_to(x,y,0.3);
 			}
 			for(var name in data.chat)
@@ -180,10 +191,15 @@ function connect_to_server() {
 
 var anim_path = [[now(),0,0,1.5]];
 
-function go_to(x,y,zoom,time) {
-	var p = current_anim();
-	var duration = vec2_length([x-p[0],y-p[1]]) * (time || 1000);
-	anim_path.push([now()+duration,x,y,zoom || anim_path[0][3]]);
+function clamp_zoom(zoom) { return Math.max(Math.min(zoom, 1.5), 0.1); }
+
+function go_to(x,y,zoom,speed) {
+	var p = anim_path[anim_path.length-1];
+	if(anim_path.length == 1)
+		p[0] = now();
+	zoom = clamp_zoom(zoom || p[3]);
+	var duration = vec2_length([x-p[1],y-p[2]]) * (speed || 1000);
+	anim_path.push([p[0]+duration,x,y,zoom]);
 }
 
 function current_anim() {
@@ -223,12 +239,62 @@ function onResize() {
 	update_foreground();
 }
 
+function onMouseWheel(evt, delta) {
+	if(anim_path.length == 1) {
+		var zoom = clamp_zoom(anim_path[0][3] + delta * 0.001);
+		if(zoom != anim_path[0][3]) {
+			anim_path[0][3] = zoom;
+			onResize();
+		}
+	}
+}
+
+function onMouseDown(evt) {
+	var pos = unproject(evt.clientX, canvas.height-evt.clientY, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0];
+	go_to(pos[0], pos[1], anim_path[anim_path.length-1][3] * 0.5);
+}
+
+function onMouseMove(evt) {
+	var pos = [evt.clientX, canvas.height-evt.clientY];
+	var best, best_score;
+	for(var user in users) {
+		user = users[user];
+		var x = user.screen_pos[0], y = user.screen_pos[1];
+		var d = vec2_distance([x, y-16], pos);
+		if(!best || d < best_score) {
+			best = user;
+			best_score = d;
+		}
+	}
+	if(best && best_score < 10)
+		console.log("click", best, best_score);
+}
+
 function render() {
+	var elapsed = now() - last_draw;
+	last_draw += elapsed;
+	
 	gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
 	
-	if(anim_path.length > 1)
+	if(anim_path.length > 1) {
 		onResize();
-		
+	} else {
+		var x = 0, y = 0;
+		if(keys[38] && !keys[40]) // down
+			y = 0.005 * elapsed;
+		else if(keys[40] && !keys[38]) // up
+			y -= 0.005 * elapsed;
+		if(keys[37] && !keys[39]) // left
+			x -= 0.005 * elapsed;
+		else if(keys[39] && !keys[37]) // right
+			x = 0.005 * elapsed;
+		if(x || y) {
+			console.log(x,y);
+			anim_path[0][1] += x * anim_path[0][3];
+			anim_path[0][2] += y * anim_path[0][3];
+			onResize();
+		}
+	}
 	world_map.draw();
 	foreground.draw(foreground.mvpMatrix);
 }

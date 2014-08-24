@@ -99,8 +99,13 @@ def resolve_ip(ip):
             candidate, row = cursor.execute('SELECT ip, data FROM ips WHERE ip <= ? ORDER BY ip DESC LIMIT 1', (ip,)).fetchone()
             row = json.loads(pysmaz.decompress(row))
             if candidate <= ip and candidate + row[1] > ip:
+                location = cursor.execute('SELECT data FROM locs WHERE id = ?', (row[2],)).fetchone()
+                if location:
+                    location = pysmaz.decompress(location[0])
+                    row[2] = json.loads(location)
                 return row
         except TypeError:
+            traceback.print_exc()
             return          
 
 if __name__ == "__main__":
