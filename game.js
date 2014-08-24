@@ -1,6 +1,7 @@
 
 var server_websocket;
 var DEG2RAD = Math.PI/180;
+var intro_millis = 0;
 
 function to_mercator(lng, lat) {
 	lng *= DEG2RAD;
@@ -77,10 +78,13 @@ var world_map = {
 	draw: function() {
 		if(!this.shapes.length)
 			return;
-		var intro_anim_t = (now()-this.start_time) / 3000;
+		var intro_anim_t = (now()-this.start_time) / intro_millis;
 		if(intro_anim_t > 1 && loading) {
 			loading = false;
-			loadFile("image", "data/map1.jpg", connect_to_server);
+			loadFile("image", "data/map1.jpg", function() {
+					update_ctx();
+					server_websocket = 1;
+			}); //####connect_to_server);
 		}
 		this.program(function() {
 				gl.bindBuffer(gl.ARRAY_BUFFER,this.vbo);
@@ -102,6 +106,8 @@ var world_map = {
 	},
 };
 
+var mercator_bg = [-180, -94, 180, 90];
+
 function update_ctx() {
 	var pin = getFile("image", "data/pin.png");
 	if(!pin || !ctx.mvpMatrix)
@@ -110,9 +116,10 @@ function update_ctx() {
 	ctx.clear();
 	var map = getFile("image", "data/map1.jpg");
 	if(map) {
-		var tl = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, vecN(to_mercator(-180,-90),0)));
-		var br = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, vecN(to_mercator(180,90),0)));
-		console.log("map",tl[0],tl[1],br[0],br[1]);
+		var tl = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
+			vecN(to_mercator(mercator_bg[0],mercator_bg[1]),0)));
+		var br = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
+			vecN(to_mercator(mercator_bg[2],mercator_bg[3]),0)));
 		ctx.drawRect(map,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
 	}
 	ctx.inject(function() { world_map.draw(); });
@@ -289,6 +296,24 @@ function onMouseWheel(evt, delta) {
 			onResize();
 		}
 	}
+}
+
+function onKeyDown(evt) {
+	var tweak = evt.shiftKey? 0.02: 1;
+	switch(evt.which) {
+	case 87: mercator_bg[1] += tweak; break; // W
+	case 83: mercator_bg[1] -= tweak; break; // S
+	case 65: mercator_bg[3] += tweak; break; // A
+	case 68: mercator_bg[3] -= tweak; break; // D
+	case 73: mercator_bg[0] -= tweak; break; // I
+	case 75: mercator_bg[0] += tweak; break; // K
+	case 74: mercator_bg[2] -= tweak; break; // J
+	case 76: mercator_bg[2] += tweak; break; // L
+	default:
+		return;
+	}
+	console.log("mercator_bg",mercator_bg[0],mercator_bg[1],mercator_bg[2],mercator_bg[3]);
+	update_ctx();
 }
 
 function onMouseDown(evt) {
