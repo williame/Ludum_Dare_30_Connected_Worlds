@@ -1,7 +1,8 @@
 
 var server_websocket;
+var debug = false;
 var DEG2RAD = Math.PI/180;
-var intro_millis = 0;
+var intro_millis = 1500;
 
 function to_mercator(lng, lat) {
 	lng *= DEG2RAD;
@@ -83,8 +84,8 @@ var world_map = {
 			loading = false;
 			loadFile("image", "data/map1.jpg", function() {
 					update_ctx();
-					server_websocket = 1;
-			}); //####connect_to_server);
+					connect_to_server();
+			});
 		}
 		this.program(function() {
 				gl.bindBuffer(gl.ARRAY_BUFFER,this.vbo);
@@ -288,7 +289,7 @@ function onResize() {
 }
 
 function onMouseWheel(evt, delta) {
-	if(!server_websocket) return;
+	if(!debug && !server_websocket) return;
 	if(anim_path.length == 1) {
 		var zoom = clamp_zoom(anim_path[0][3] + delta * 0.001);
 		if(zoom != anim_path[0][3]) {
@@ -299,6 +300,7 @@ function onMouseWheel(evt, delta) {
 }
 
 function onKeyDown(evt) {
+	if(!debug) return;
 	var tweak = evt.shiftKey? 0.02: 1;
 	switch(evt.which) {
 	case 87: mercator_bg[1] += tweak; break; // W
@@ -317,13 +319,13 @@ function onKeyDown(evt) {
 }
 
 function onMouseDown(evt) {
-	if(!server_websocket) return;
+	if(!debug && !server_websocket) return;
 	var pos = unproject(evt.clientX, canvas.height-evt.clientY, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0];
 	go_to(pos[0], pos[1], anim_path[anim_path.length-1][3] * 0.5);
 }
 
 function onMouseMove(evt) {
-	if(!server_websocket) return;
+	if(!debug && !server_websocket) return;
 	var pos = [evt.clientX, canvas.height-evt.clientY];
 	var best, best_score;
 	for(var user in users) {
