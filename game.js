@@ -1,6 +1,9 @@
 
 var server_websocket;
 var debug = false;
+
+function is_interactive() { return debug || server_websocket; }
+
 var DEG2RAD = Math.PI/180;
 var intro_millis = 1500;
 
@@ -82,10 +85,7 @@ var world_map = {
 		var intro_anim_t = (now()-this.start_time) / intro_millis;
 		if(intro_anim_t > 1 && loading) {
 			loading = false;
-			loadFile("image", "data/map1.jpg", function() {
-					update_ctx();
-					connect_to_server();
-			});
+			prompt_intro();
 		}
 		this.program(function() {
 				gl.bindBuffer(gl.ARRAY_BUFFER,this.vbo);
@@ -107,7 +107,7 @@ var world_map = {
 	},
 };
 
-var mercator_bg = [-180, -94, 180, 90];
+var mercator_bg = [-180, -94, 180, 90]; // our map isn't perfectly aligned
 
 function update_ctx() {
 	var pin = getFile("image", "data/pin.png");
@@ -152,16 +152,27 @@ function new_game() {
 	loadFile("ArrayBuffer","external/TM_WORLD_BORDERS_SIMPL-0.3/TM_WORLD_BORDERS_SIMPL-0.3.shp",load_shapefile);
 }
 
-function create_nbsp() { return document.createTextNode("\u00A0"); }
-
 function create_anchor(title, callback) {
 	var a = document.createElement('a');
-	a.appendChild(document.createTextNode(title));
+	a.appendChild(create_text(title));
 	a.addEventListener('click',callback);
 	return a;
 }
 
-function slide_anim(element, appear, after) {
+function create_text(text, style) {
+	text = text.replace(/&nbsp;/g,"\u00A0");
+	text = document.createTextNode(text);
+	if(style) {
+		var node = document.createElement('span');
+		for(var s in style)
+			node.style[s] = style[s];
+		node.appendChild(text);
+		return node;
+	}
+	return text;
+}
+
+function slide_anim(element, appear, after, speed) {
 	var height = element.clientHeight;
 	if(appear)
 		element.style.marginBottom = "-" + height + "px";
@@ -171,7 +182,7 @@ function slide_anim(element, appear, after) {
 		last += t;
 		if(!appear) t = -t;
 		var margin = parseInt(element.style.marginBottom);
-		margin = Math.min(0, margin + t * 0.5);
+		margin = Math.min(0, margin + t * (speed || 0.5));
 		element.style.marginBottom = "" + margin + "px";
 		if((appear && margin) || (!appear && margin > -height))
 			ticks.push(slide);
@@ -181,21 +192,62 @@ function slide_anim(element, appear, after) {
 	ticks.push(slide);
 }
 
+function prompt_intro() {
+	var div = document.createElement('div');
+	div.className = "bottom";
+	div.appendChild(create_text("Hello Ludum Darer!"));
+	div.appendChild(document.createElement('br'));
+	div.appendChild(create_text("You inhabit a strange world, an underworld..."));
+	div.appendChild(document.createElement('br'));
+	div.appendChild(create_text("You inhabit the online world of "));
+	div.appendChild(create_text("Ludum Dare!&nbsp;",{fontStyle:'italic', color:'pink'}));
+	div.appendChild(create_anchor("I ADMIT IT", function() {
+		slide_anim(div, false, function() {
+			while(div.firstChild) div.removeChild(div.firstChild);
+			div.appendChild(create_text("There's this thing called the&nbsp;"));
+			div.appendChild(create_text("real",{fontStyle:'italic'}));
+			div.appendChild(create_text("&nbsp;world too... ever heard of it?"));
+			div.appendChild(document.createElement('br'));
+			div.appendChild(create_text("This&nbsp;"));
+			div.appendChild(create_text("meta",{fontStyle:'italic'}));
+			div.appendChild(create_text("-game connects the two...&nbsp;"));
+			div.appendChild(create_anchor("Cool! Let's play!", function() {
+				div.parentNode.removeChild(div);
+				connect_to_server();
+			}));
+			slide_anim(div, true);
+		});
+	}));
+	div.appendChild(create_text('&nbsp;'));
+	div.appendChild(create_anchor("What's Ludum Dare?", function() {
+		slide_anim(div, false, function() {
+			while(div.firstChild) div.removeChild(div.firstChild);
+			div.appendChild(create_text("You have to have played Ludum Dare 30 in order to be able to play this game.&nbsp;"));
+			div.appendChild(create_anchor("show me Ludum Dare!", function() {
+				report_info("user doesn't play LD");
+				window.location = "http://www.ludumdare.com/compo";
+			}));
+			slide_anim(div, true);
+		});
+	}));
+	document.body.appendChild(div);
+	slide_anim(div, true, function() {
+		loadFile("image", "data/map1.jpg", update_ctx);
+	});
+}
+
 function prompt_for_user() {
 	var div = document.createElement('div');
 	div.className = "bottom";
-	div.appendChild(document.createTextNode("Hello!"));
-	div.appendChild(document.createElement('br'));
 	if(ip_pos && ip_pos[2]) {
-		div.appendChild(document.createTextNode("Are you in "+ip_pos[2][4] + "?"));
-		div.appendChild(create_nbsp());
+		div.appendChild(create_text("Are you in "+ip_pos[2][4] + "?&nbsp;"));
 		div.appendChild(create_anchor("YES", function() {
 			slide_anim(div, false, function() {
 				div.parentNode.removeChild(div);
 				canvas.focus();
 			});
 		}));
-		div.appendChild(create_nbsp());
+		div.appendChild(create_text('&nbsp;'));
 		div.appendChild(create_anchor("NO", function() {
 			slide_anim(div, false, function() {
 				div.parentNode.removeChild(div);
@@ -204,7 +256,7 @@ function prompt_for_user() {
 		}));
 
 	} else {
-		div.appendChild(document.createTextNode("Hmm, I don't who you are!  Can you help me?"));
+		div.appendChild(create_text("Hmm, I don't who you are!  Can you help me?"));
 	}
 	document.body.appendChild(div);
 	slide_anim(div, true);
@@ -289,7 +341,7 @@ function onResize() {
 }
 
 function onMouseWheel(evt, delta) {
-	if(!debug && !server_websocket) return;
+	if(!is_interactive()) return;
 	if(anim_path.length == 1) {
 		var zoom = clamp_zoom(anim_path[0][3] + delta * 0.001);
 		if(zoom != anim_path[0][3]) {
@@ -319,13 +371,13 @@ function onKeyDown(evt) {
 }
 
 function onMouseDown(evt) {
-	if(!debug && !server_websocket) return;
+	if(!is_interactive()) return;
 	var pos = unproject(evt.clientX, canvas.height-evt.clientY, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0];
 	go_to(pos[0], pos[1], anim_path[anim_path.length-1][3] * 0.5);
 }
 
 function onMouseMove(evt) {
-	if(!debug && !server_websocket) return;
+	if(!is_interactive()) return;
 	var pos = [evt.clientX, canvas.height-evt.clientY];
 	var best, best_score;
 	for(var user in users) {
@@ -355,7 +407,7 @@ function render() {
 	
 	if(anim_path.length > 1) {
 		onResize();
-	} else {
+	} else if(is_interactive()) {
 		var x = 0, y = 0;
 		if(keys[38] && !keys[40]) // down
 			y = 0.005 * elapsed;

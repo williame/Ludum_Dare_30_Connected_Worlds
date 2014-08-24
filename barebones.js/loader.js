@@ -10,6 +10,17 @@ function isLocalHost() {
 	return isOnFileSystem() || window.location.hostname == "localhost";
 }
 
+function getServerHost() {
+	var server = getParameterByName("server");
+	if(!server) {
+		if(isLocalHost()) // if running locally, connect locally
+			server = window.location.host;
+		else
+			server = "31.192.226.244:28283"; // my private server; if you fork, you have to change this
+	}
+	return server;
+}
+
 function getParameterByName(name) {
 	name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
 	var	regexS = "[\\?&]" + name + "=([^&#]*)",

@@ -53,15 +53,9 @@ var fail = fail || function(error) {
 	fail.error = error;
 	console.log("error",error,"at",error.stack);
 	if(!isInWebWorker) {
-		if(isOnGithubPages && !isOnGithubPages() && isOnFileSystem && !isOnFileSystem()) {
-			var doc = new XMLHttpRequest();
-			doc.open("POST","/api/report_error",true);
-			doc.overrideMimeType("text/plain");
-			doc.onerror = function() {};
-			doc.send(""+error+"\n"+error.stack);	
-			if(!isLocalHost || !isLocalHost())
-				window.setTimeout(function() { window.location.reload(false); },2500);
-		}
+		report_error(""+error+"\n"+error.stack);
+		if(isOnGithubPages && !isOnGithubPages() && isOnFileSystem && !isOnFileSystem() && isLocalHost && !isLocalHost())
+			window.setTimeout(function() { window.location.reload(false); },2500);
 		var div = window.document.getElementById("error");
 		if(div) {
 			div.innerHTML = "<b>AN ERROR OCCURRED</b><br/>"+error+"<br/><pre>"+error.stack;
@@ -69,6 +63,22 @@ var fail = fail || function(error) {
 		}
 	}
 	throw error;
+}
+
+function report_error(message) {
+	var doc = new XMLHttpRequest();
+	doc.open("POST","http://"+getServerHost()+"/api/report_error",false);
+	doc.overrideMimeType("text/plain");
+	doc.onerror = function() {};
+	doc.send(message);
+}
+
+function report_info(message) {
+	var doc = new XMLHttpRequest();
+	doc.open("POST","http://"+getServerHost()+"/api/report_info",false);
+	doc.overrideMimeType("text/plain");
+	doc.onerror = function() {};
+	doc.send(message);
 }
 
 var assert = assert || function(condition,msg) {
