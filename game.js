@@ -35,6 +35,7 @@ function load_shapefile(data) {
 	world_map.start_time = now();
 }
 
+var ticks = [];
 var ip_pos, user, users = {};
 var last_draw = now();
 var foreground = new UIContext();
@@ -147,6 +148,26 @@ function create_anchor(title, callback) {
 	return a;
 }
 
+function slide_anim(element, appear, after) {
+	var height = element.clientHeight;
+	if(appear)
+		element.style.marginBottom = "-" + height + "px";
+	var last = now();
+	var slide = function() {
+		var t = now() - last;
+		last += t;
+		if(!appear) t = -t;
+		var margin = parseInt(element.style.marginBottom);
+		margin = Math.min(0, margin + t * 0.5);
+		element.style.marginBottom = "" + margin + "px";
+		if((appear && margin) || (!appear && margin > -height))
+			ticks.push(slide);
+		else if(after)
+			after();
+	};
+	ticks.push(slide);
+}
+
 function prompt_for_user() {
 	var div = document.createElement('div');
 	div.className = "bottom";
@@ -156,7 +177,10 @@ function prompt_for_user() {
 		div.appendChild(document.createTextNode("Are you in "+ip_pos[2][4] + "?"));
 		div.appendChild(create_nbsp());
 		div.appendChild(create_anchor("YES", function() {
-				div.style.visibility = 'hidden';
+			slide_anim(div, false, function() {
+				console.log("slide off done");
+				div.parentNode.removeChild(div);
+			});
 		}));
 		div.appendChild(create_nbsp());
 		div.appendChild(create_anchor("NO", function() { console.log("NO!") }));
@@ -165,24 +189,26 @@ function prompt_for_user() {
 		div.appendChild(document.createTextNode("Hmm, I don't who you are!  Can you help me?"));
 	}
 	document.body.appendChild(div);
+	slide_anim(div, true);
 }
 
 function connect_to_server() {
 	server_websocket = create_websocket_connection(function(evt) {
 			data = JSON.parse(evt.data);
 			console.log("got", data);
-			for(var i in data.locations) {
-				var loc = data.locations[i];
-				var uid = loc[0], x = loc[1][0], y = loc[1][1], targets = loc[2];
-				var u = users[uid] = users[uid] || {};
-				u.uid = uid;
-				x *= DEG2RAD;
-				x = 180.0/Math.PI * Math.log(Math.tan(Math.PI/4.0+x*DEG2RAD/2.0));
-				y *= DEG2RAD;
-				u.position = [x, y];
-				u.targets = targets;
-				if(!user)
-					prompt_for_user();
+			if(data.locations) {
+				for(var i in data.locations) {
+					var loc = data.locations[i];
+					var uid = loc[0], x = loc[1][0], y = loc[1][1], targets = loc[2];
+					var u = users[uid] = users[uid] || {};
+					u.uid = uid;
+					x *= DEG2RAD;
+					x = 180.0/Math.PI * Math.log(Math.tan(Math.PI/4.0+x*DEG2RAD/2.0));
+					y *= DEG2RAD;
+					u.position = [x, y];
+					u.targets = targets;
+				}
+				prompt_for_user();
 			}
 			if(data.ip_lookup) {
 				var x = data.ip_lookup[7] * DEG2RAD;
@@ -279,6 +305,12 @@ function onMouseMove(evt) {
 }
 
 function render() {
+	if(ticks.length) {
+		var old_ticks = ticks;
+		ticks = [];
+		for(var i in old_ticks)
+			old_ticks[i]();
+	}
 	var elapsed = now() - last_draw;
 	last_draw += elapsed;
 	
