@@ -1,10 +1,12 @@
-import os, urllib2, zipfile, bisect
+import os, urllib2, zipfile, sqlite3, traceback, json
+
+from external import pysmaz
 
 def ip_to_32(ip):
     ip = map(int, ip.split('.'))
     return (ip[0] << 24) + (ip[1] << 16) + (ip[2] << 8) + ip[3]
-            
-locations, ips = {}, []
+
+db = None
 
 def load_ip_locations():
     # locations: (geoname_id, continent_code, continent_name, country_iso_code, country_name,
@@ -12,45 +14,94 @@ def load_ip_locations():
     # ips:       (network_start_ip, network_mask_length, geoname_id, registered_country_geoname_id,
     #            represented_country_geoname_id, postal_code, lat, lng,is_anonymous_proxy,
     #            is_satellite_provider)
-    global ips, locations
-    ips = []
-    filename = 'GeoLite2-City-CSV.zip'
-    if not os.path.exists(filename):
-        print '=== DOWNLOADING', filename, '==='
-        data = urllib2.urlopen('http://geolite.maxmind.com/download/geoip/database/%s' % filename).read()
-        with open(filename, 'w') as f:
-            f.write(data)
-    print '=== LOADING', filename, '==='
-    with zipfile.ZipFile(filename, 'r') as zf:
-        f = zf.open('GeoLite2-City-CSV_20140805/GeoLite2-City-Locations.csv', 'r').read().split('\n')
-        for line in f[1:-1]:
+    global db
+    if os.path.exists("geo.db"):
+        print '=== LOADING GEO DB ==='
+        db = sqlite3.connect('geo.db')
+        db.text_factory = str
+        return
+    # make the DB then
+    print '=== MAKING GEO DB ==='
+    locations, ips = {}, []
+    zipfilename = 'GeoLite2-City-CSV.zip'
+    folder = 'GeoLite2-City-CSV_20140805'
+    if not os.path.exists(folder):
+        if not os.path.exists(zipfilename):
+            print '=== DOWNLOADING', zipfilename, '==='
+            data = urllib2.urlopen('http://geolite.maxmind.com/download/geoip/database/%s' % zipfilename).read()
+            with open(filename, 'w') as f:
+                f.write(data)
+    def load_location(line):
+        if line:
             line = line.split(',')
-            locations[line[0]] = tuple(map(intern,line))
-        print len(locations), "locations"
-        f = zf.open('GeoLite2-City-CSV_20140805/GeoLite2-City-Blocks.csv', 'r').read().split('\n')
-        for line in f[1:-1]:
+            locations[intern(line[0])] = tuple(map(intern,line))
+    def load_ip(line):
+        if line:
             (network_start_ip, network_mask_length, geoname_id, registered_country_geoname_id,
                 represented_country_geoname_id, postal_code, lat, lng,is_anonymous_proxy,
                 is_satellite_provider) = line.split(',')
             if network_start_ip.startswith("::ffff:"): # ip4
                 network_mask_length =  (1 << (128 - int(network_mask_length)))
                 network_start_ip = ip_to_32(network_start_ip[7:].split(',')[0])
-                ips.append((network_start_ip, network_mask_length, locations.get(geoname_id),
-                    locations.get(registered_country_geoname_id), locations.get(represented_country_geoname_id),
+                ips.append((network_start_ip, network_mask_length, geoname_id,
+                    registered_country_geoname_id, represented_country_geoname_id,
                     intern(postal_code), float(lat) if lat else None, float(lng) if lng else None,
                     bool(is_anonymous_proxy), bool(is_satellite_provider)))
-        ips.sort()
-        print len(ips), "ips"
+    if os.path.exists(folder):
+        print '=== LOADING', folder, '==='
+        first = True
+        for line in open('%s/GeoLite2-City-Locations.csv' % folder, 'r'):
+            if first: first = False
+            else: load_location(line)
+        first = True
+        for line in open('%s/GeoLite2-City-Blocks.csv' % folder, 'r'):
+            if first: first = False
+            else: load_ip(line)
+    else:
+        with zipfile.ZipFile(zipfilename, 'r') as zf:
+            print '=== LOADING', zipfilename, '==='
+            first = True
+            for line in zf.open('%s/GeoLite2-City-Locations.csv' % folder, 'r'):
+                if first: first = False
+                else: load_location(line)
+            
+            first = True
+            for line in zf.open('%s/GeoLite2-City-Blocks.csv' % folder, 'r'):
+                if first: first = False
+                else: load_ip(line)
+    print len(locations), "locations"
+    print len(ips), "ips"
+    db = sqlite3.connect('geo.db')
+    db.text_factory = str
+    cursor = db.cursor()
+    cursor.execute('CREATE TABLE locs(id TEXT PRIMARY KEY, data TEXT)')
+    cursor.execute('CREATE TABLE ips(ip INTEGER PRIMARY KEY, data TEXT)')
+    db.commit()
+    for i, ip in enumerate(ips):
+        try:
+            cursor.execute('INSERT INTO ips(ip, data) VALUES(?,?)', (ip[0], pysmaz.compress(json.dumps(ip))))
+        except sqlite3.IntegrityError as e:
+            print "WARNING:", i, ip, e
+    db.commit()
+    for loc in locations.values():
+        cursor.execute('INSERT INTO locs(id, data) VALUES(?,?)', (loc[0], pysmaz.compress(json.dumps(loc))))
+    db.commit()
+    cursor.close()
 
 def resolve_ip(ip):
-    if ips:
+    if db:
         try:
             ip = ip_to_32(ip)
         except (ValueError, IndexError): # ip6?
             return
-        i = bisect.bisect_right(ips, (ip, ))
-        if ips[i][0] > ip:
-            i -= 1
-        if ips[i][0] <= ip and ips[i][0] + ips[i][1] > ip:
-            return ips[i]
+        try:
+            cursor = db.cursor()
+            candidate, row = cursor.execute('SELECT ip, data FROM ips WHERE ip <= ? ORDER BY ip DESC LIMIT 1', (ip,)).fetchone()
+            row = json.loads(pysmaz.decompress(row))
+            if candidate <= ip and candidate + row[1] > ip:
+                return row
+        except TypeError:
+            return          
 
+if __name__ == "__main__":
+    load_ip_locations()

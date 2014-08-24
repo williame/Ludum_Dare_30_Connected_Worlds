@@ -31,13 +31,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os, subprocess, base64, tempfile, shutil, sys, uuid, logging, time, json, random
+import os, subprocess, base64, tempfile, shutil, sys, uuid, logging, time
+import json, random, traceback
 import tornado.ioloop
 import tornado.web
 from tornado.options import define, options, parse_command_line
 
 import tornado.websocket
 import update_map, geoloc
+    
 ludum_dare = 'ludum-dare-27-warmup'
 
 options.define("port",default=8888,type=int)
@@ -248,12 +250,6 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
             print "kicking out bad origin"
             self.write_message('{"chat":[{"Will":"if you fork the code, you need to run your own server!"}]}')
             self.close()
-        locations = []
-        for author in update_map.authors_by_uid.values():
-            if author.get("position"):
-                locations.append(author)
-        if locations:
-            self.write_message(json.dumps({"locations":locations}))
         ip, ip_lookup = self.request.remote_ip, None
         ip_lookup = geoloc.resolve_ip(ip)
         if not ip_lookup:
@@ -271,7 +267,16 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
         try:
             message = json.loads(message)
             assert isinstance(message,dict)
-            print "GOT", message
+            ludum_dare_id = update_map.comps[ludum_dare]
+            cmd = message["cmd"]
+            if cmd == "get_locations":
+                locations = []
+                for author in update_map.authors_by_uid.values():
+                    if author.get("position") and ludum_dare_id in author.comps:
+                        locations.append([author.uid,author.position,[t[1] for t in author.get("targets",[])]])
+                self.write_message(json.dumps({"locations":locations}))
+            else:
+                raise Exception("unsupported cmd: %s" % cmd)
         except:
             print "ERROR processing",message
             traceback.print_exc()

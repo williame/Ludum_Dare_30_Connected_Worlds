@@ -141,11 +141,15 @@ function connect_to_server() {
 			data = JSON.parse(evt.data);
 			console.log("got", data);
 			for(var i in data.locations) {
-				var author = data.locations[i];
-				author.position[0] *= DEG2RAD;
-				author.position[0] = 180.0/Math.PI * Math.log(Math.tan(Math.PI/4.0+author.position[0]*DEG2RAD/2.0));
-				author.position[1] *= DEG2RAD;
-				users[author.uid] = author;
+				var loc = data.locations[i];
+				var uid = loc[0], x = loc[1][1], y = loc[1][0], targets = loc[2];
+				var user = users[uid] = users[uid] || {};
+				user.uid = uid;
+				y *= DEG2RAD;
+				y = 180.0/Math.PI * Math.log(Math.tan(Math.PI/4.0+y*DEG2RAD/2.0));
+				x *= DEG2RAD;
+				user.position = [y, x];
+				user.targets = targets;
 			}
 			if(data.ip_lookup) {
 				var x = data.ip_lookup[7] * DEG2RAD;
@@ -157,6 +161,7 @@ function connect_to_server() {
 				UI.addMessage(10,name,data.chat[name]);
 			update_foreground();
 	});
+	server_websocket.send(JSON.stringify({"cmd":"get_locations"}))
 }
 
 var anim_path = [[now(),0,0,1.5]];
@@ -178,8 +183,7 @@ function current_anim() {
 		zoom = start[3];
 	if(anim_path.length == 1)
 		start[0] = now;
-	if(anim_path.length > 1) {
-		assert(start[0] < now);
+	if(anim_path.length > 1 && start[0] < now) {
 		var	next = anim_path[1],
 			t = (now - start[0]) / (next[0] - start[0]);
 		x = lerp(x, next[1], t);

@@ -6,6 +6,7 @@ regex_comp_entries = re.compile(r"<a href='\?action=preview&uid=([0-9]+)'><img s
 regex_author = re.compile(r'../author/([^/]+)')
 regex_author_name = re.compile(r'<h2 class="pagetitle">About ([^(<]+)')
 regex_commenter = re.compile(r'"?action=preview&uid=(\d+)">.*</a> says ...</strong></div><div><small>([^<]+)')
+regex_target = re.compile(r'href="([^"]+)" target=\'_blank\'>([^<]+)</a>')
 
 class DotDict(collections.defaultdict):
     __getattr__ = dict.__getitem__
@@ -111,7 +112,8 @@ def update_from_comp_listings(ludum_dare):
         for uid, img, title, name in response:
             start += 1
             try:
-                response = urllib2.urlopen('http://www.ludumdare.com/compo/%s/?action=preview&uid=%s' % (ludum_dare, uid)).read()
+                url = 'http://www.ludumdare.com/compo/%s/?action=preview&uid=%s' % (ludum_dare, uid)
+                response = urllib2.urlopen(url).read()
             except urllib2.HTTPError as e:
                 print >> sys.stderr, 'ERROR: cannot get entry page for', username, uid, ludum_dare, e
                 continue
@@ -123,6 +125,16 @@ def update_from_comp_listings(ludum_dare):
                 print >> sys.stderr, "ERROR: ambiguous author", name, uid, username
                 continue
             username = username[0]
+            
+            try:
+                targets = response[response.index('<div class="entry">'):]
+                targets = targets[targets.index('</h3>'):]
+                targets = targets[:targets.index("</p><p>")]
+                targets = tuple((path, intern(target)) for path, target in regex_target.findall(targets))
+            except Exception as e:
+                print "ERROR computing target", url, e
+                targets = None
+            
             commenters = [[i, date_parse(d)] for i, d in regex_commenter.findall(response)]
             if uid not in authors_by_uid:
                 entries = [ludum_dare_id]
@@ -155,8 +167,19 @@ def update_from_comp_listings(ludum_dare):
             if ludum_dare_id not in author.commenters or author.commenters[ludum_dare_id] != commenters:
                 author.commenters[ludum_dare_id] = commenters
                 new = True
+            if author.get("targets") != targets:
+                author.targets = targets
+                new = True
     return new
     
 def tick(ludum_dare):
-    if bool(update_from_world_map()) | bool(update_from_comp_listings(ludum_dare)):
+    save = []
+    #save.append(update_from_world_map())
+    save.append(update_from_comp_listings(ludum_dare))
+    if any(save):
         save_data()
+        
+        
+if __name__ == "__main__":
+    load_data()
+    tick('ludum-dare-27-warmup')
