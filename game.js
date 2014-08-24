@@ -138,21 +138,29 @@ function new_game() {
 	loading = false;
 }
 
+function create_nbsp() { return document.createTextNode("\u00A0"); }
+
+function create_anchor(title, callback) {
+	var a = document.createElement('a');
+	a.appendChild(document.createTextNode(title));
+	a.addEventListener('click',callback);
+	return a;
+}
+
 function prompt_for_user() {
-	var width = 640, height = 480;
 	var div = document.createElement('div');
-	div.style.position = "fixed";
-	div.style.backgroundImage = "url(data/ctrl_icons.png)";
-	div.style.bottom = "0%";
-	div.style.width = "100%";
-	div.style.fontSize = "x-large";
-	div.style.fontWeight = "bold";
-	div.style.fontFamily = "Fantasy, 'Comic Sans', Serif";
-	div.style.margin = "10px";
+	div.className = "bottom";
 	div.appendChild(document.createTextNode("Hello!"));
 	div.appendChild(document.createElement('br'));
 	if(ip_pos && ip_pos[2]) {
 		div.appendChild(document.createTextNode("Are you in "+ip_pos[2][4] + "?"));
+		div.appendChild(create_nbsp());
+		div.appendChild(create_anchor("YES", function() {
+				div.style.visibility = 'hidden';
+		}));
+		div.appendChild(create_nbsp());
+		div.appendChild(create_anchor("NO", function() { console.log("NO!") }));
+		
 	} else {
 		div.appendChild(document.createTextNode("Hmm, I don't who you are!  Can you help me?"));
 	}
