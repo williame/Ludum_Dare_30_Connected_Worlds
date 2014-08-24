@@ -263,18 +263,20 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
             print "(ip %s -> %s)" % (ip, ip_lookup)
         self.write_message(json.dumps({"ip":ip,"ip_lookup":ip_lookup}));
     def on_message(self,message):
+        global seq
         self.lastMessage = time.time()
         try:
             message = json.loads(message)
             assert isinstance(message,dict)
             ludum_dare_id = update_map.comps[ludum_dare]
             cmd = message["cmd"]
+            seq = message.get("seq") or 0
             if cmd == "get_locations":
                 locations = []
                 for author in update_map.authors_by_uid.values():
-                    if author.get("position") and ludum_dare_id in author.comps:
-                        locations.append([author.uid,author.position,[t[1] for t in author.get("targets",[])]])
-                self.write_message(json.dumps({"locations":locations}))
+                    if author.seq > seq and author.get("position") and ludum_dare_id in author.comps:
+                        locations.append([author.uid,author.position,author.name,[t[1] for t in author.get("targets",[])]])
+                self.write_message(json.dumps({"seq":update_map.seq,"locations":locations}))
             else:
                 raise Exception("unsupported cmd: %s" % cmd)
         except:
@@ -309,7 +311,7 @@ if __name__ == "__main__":
 
     geoloc.load_ip_locations()
     update_map.load_data()
-    # update_map.tick(ludum_dare)
+    ### update_map.tick(ludum_dare)
 
     application.listen(options.port)
     try:

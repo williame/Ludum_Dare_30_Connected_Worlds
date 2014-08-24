@@ -2,6 +2,13 @@
 var server_websocket;
 var DEG2RAD = Math.PI/180;
 
+function to_mercator(lng, lat) {
+	lng *= DEG2RAD;
+	lng = 180.0/Math.PI * Math.log(Math.tan(Math.PI/4.0+lng*DEG2RAD/2.0));
+	lat *= DEG2RAD;
+	return [lng, lat];
+}
+
 function load_shapefile(data) {
 	var shp = new BinaryDataReader(data);
 	shp.seek(24);
@@ -38,7 +45,7 @@ function load_shapefile(data) {
 var ticks = [];
 var ip_pos, user, users = {};
 var last_draw = now();
-var foreground = new UIContext();
+var ctx = new UIContext();
 var world_map = {
 	pMatrix: mat4_identity,
 	mvMatrix: mat4_identity,
@@ -71,8 +78,10 @@ var world_map = {
 		if(!this.shapes.length)
 			return;
 		var intro_anim_t = (now()-this.start_time) / 3000;
-		if(intro_anim_t > 1 && !server_websocket)
-			connect_to_server();
+		if(intro_anim_t > 1 && loading) {
+			loading = false;
+			loadFile("image", "data/map1.jpg", connect_to_server);
+		}
 		this.program(function() {
 				gl.bindBuffer(gl.ARRAY_BUFFER,this.vbo);
 				gl.vertexAttribPointer(this.program.vertex,2,gl.FLOAT,false,0,0);
@@ -87,47 +96,42 @@ var world_map = {
 			}, {
 				pMatrix: this.pMatrix,
 				mvMatrix: this.mvMatrix,
-				colour: [0.8, 1, 0.8, 1],
+				colour: [0.5, 1, 1, 1],
 				t: intro_anim_t,
 			}, this);
 	},
 };
 
-function update_foreground() {
+function update_ctx() {
 	var pin = getFile("image", "data/pin.png");
-	if(!pin || !foreground.mvpMatrix)
+	if(!pin || !ctx.mvpMatrix)
 		return;
-	foreground.clear();
-	mvpInv = mat4_inverse(foreground.mvpMatrix);
+	mvpInv = mat4_inverse(ctx.mvpMatrix);
+	ctx.clear();
+	var map = getFile("image", "data/map1.jpg");
+	if(map) {
+		var tl = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, vecN(to_mercator(-180,-90),0)));
+		var br = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, vecN(to_mercator(180,90),0)));
+		console.log("map",tl[0],tl[1],br[0],br[1]);
+		ctx.drawRect(map,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
+	}
+	ctx.inject(function() { world_map.draw(); });
 	for(var user in users) {
 		user = users[user];
 		var p = [user.position[1], user.position[0], 0];
 		p = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, p));
 		var x = p[0], y = p[1];
 		user.screen_pos = [x, y];
-		foreground.drawRect(pin,OPAQUE,x-pin.width/2,y-pin.height,x+pin.width/2,y,0,0,1,1);
+		ctx.drawRect(pin,OPAQUE,x-pin.width/2,y-pin.height,x+pin.width/2,y,0,0,1,1);
 	}
-	foreground.finish();
-}
-
-function make_splash() {
-	var panel = new UIPanel([
-			new UIImage("data/pin.png"),
-		]);
-	panel.afterLayout = function() {
-		panel.setPos([((canvas.offsetWidth-panel.width()) / 2) | 0,
-			((canvas.offsetHeight-panel.height()) / 2) | 0]);
-	};
-	var win = new UIWindow(false,panel);
-	//win.show();
+	ctx.finish();
 }
 
 function new_game() {
-	loading = false;
+	loading = true;
 	gl.clearColor(0.7,0.8,1,1);
-	make_splash();
 	onResize();
-	loadFile("image", "data/pin.png", update_foreground);
+	loadFile("image", "data/pin.png", update_ctx);
 	try {
 		var aliasedLineRange = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
 		if(aliasedLineRange)
@@ -136,7 +140,6 @@ function new_game() {
 		console.log("ERROR setting aliased line:", error);
 	}
 	loadFile("ArrayBuffer","external/TM_WORLD_BORDERS_SIMPL-0.3/TM_WORLD_BORDERS_SIMPL-0.3.shp",load_shapefile);
-	loading = false;
 }
 
 function create_nbsp() { return document.createTextNode("\u00A0"); }
@@ -199,13 +202,10 @@ function connect_to_server() {
 			if(data.locations) {
 				for(var i in data.locations) {
 					var loc = data.locations[i];
-					var uid = loc[0], x = loc[1][0], y = loc[1][1], targets = loc[2];
+					var uid = loc[0], lng = loc[1][0], lat = loc[1][1], targets = loc[2];
 					var u = users[uid] = users[uid] || {};
 					u.uid = uid;
-					x *= DEG2RAD;
-					x = 180.0/Math.PI * Math.log(Math.tan(Math.PI/4.0+x*DEG2RAD/2.0));
-					y *= DEG2RAD;
-					u.position = [x, y];
+					u.position = to_mercator(lng, lat);
 					u.targets = targets;
 				}
 				prompt_for_user();
@@ -218,7 +218,7 @@ function connect_to_server() {
 			}
 			for(var name in data.chat)
 				UI.addMessage(10,name,data.chat[name]);
-			update_foreground();
+			update_ctx();
 	});
 	server_websocket.send(JSON.stringify({"cmd":"get_locations"}))
 }
@@ -265,15 +265,16 @@ function onResize() {
 		ortho = [-zoom*xaspect + x,zoom*xaspect + x,-zoom*yaspect + y,zoom*yaspect + y];
 	world_map.pMatrix = createOrtho2D(ortho[0],ortho[1],ortho[2],ortho[3],-2,2);
 	world_map.mvpMatrix = world_map.pMatrix;
-	if(foreground.width != canvas.offsetWidth || foreground.height != canvas.offsetHeight || !foreground.mvpMatrix) {
-		foreground.width = canvas.offsetWidth;
-		foreground.height = canvas.offsetHeight;
-		foreground.mvpMatrix = new Float32Array(createOrtho2D(0,foreground.width,foreground.height,0));
+	if(ctx.width != canvas.offsetWidth || ctx.height != canvas.offsetHeight || !ctx.mvpMatrix) {
+		ctx.width = canvas.offsetWidth;
+		ctx.height = canvas.offsetHeight;
+		ctx.mvpMatrix = new Float32Array(createOrtho2D(0,ctx.width,ctx.height,0));
 	}
-	update_foreground();
+	update_ctx();
 }
 
 function onMouseWheel(evt, delta) {
+	if(!server_websocket) return;
 	if(anim_path.length == 1) {
 		var zoom = clamp_zoom(anim_path[0][3] + delta * 0.001);
 		if(zoom != anim_path[0][3]) {
@@ -284,11 +285,13 @@ function onMouseWheel(evt, delta) {
 }
 
 function onMouseDown(evt) {
+	if(!server_websocket) return;
 	var pos = unproject(evt.clientX, canvas.height-evt.clientY, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0];
 	go_to(pos[0], pos[1], anim_path[anim_path.length-1][3] * 0.5);
 }
 
 function onMouseMove(evt) {
+	if(!server_websocket) return;
 	var pos = [evt.clientX, canvas.height-evt.clientY];
 	var best, best_score;
 	for(var user in users) {
@@ -335,6 +338,5 @@ function render() {
 			onResize();
 		}
 	}
-	world_map.draw();
-	foreground.draw(foreground.mvpMatrix);
+	ctx.draw(ctx.mvpMatrix);
 }
