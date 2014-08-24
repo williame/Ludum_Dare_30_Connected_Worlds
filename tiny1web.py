@@ -31,7 +31,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os, subprocess, base64, tempfile, shutil, sys, uuid, logging, time
+import os, subprocess, base64, tempfile, shutil, sys, uuid, logging, time, json, random
 import tornado.ioloop
 import tornado.web
 from tornado.options import define, options, parse_command_line
@@ -248,6 +248,24 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
             print "kicking out bad origin"
             self.write_message('{"chat":[{"Will":"if you fork the code, you need to run your own server!"}]}')
             self.close()
+        locations = []
+        for author in update_map.authors_by_uid.values():
+            if author.get("position"):
+                locations.append(author)
+        if locations:
+            self.write_message(json.dumps({"locations":locations}))
+        ip, ip_lookup = self.request.remote_ip, None
+        ip_lookup = geoloc.resolve_ip(ip)
+        if not ip_lookup:
+            ip = "%d.%d.%d.%d" % (random.randint(0,255),
+                random.randint(0,255),random.randint(0,255),random.randint(0,255))
+            ip_lookup = geoloc.resolve_ip(ip);
+            if(ip_lookup):
+                self.write_message(json.dumps({"chat":{
+                            "Server": "(I couldn't determine a location for %s so I pretended you were at %s)" % (self.request.remote_ip, ip),
+                }}))
+            print "(ip %s -> %s)" % (ip, ip_lookup)
+        self.write_message(json.dumps({"ip":ip,"ip_lookup":ip_lookup}));
     def on_message(self,message):
         self.lastMessage = time.time()
         try:
@@ -284,8 +302,8 @@ if __name__ == "__main__":
     ), cookie_secret = options.cookie_secret)
     _add_to_log(logging.INFO,"server","serving %s on port %d (zipball is /api/zip/%s.zip)",options.branch,options.port,zipballFilename)
 
-    # geoloc.load_ip_locations()
-    # update_map.load_data()
+    geoloc.load_ip_locations()
+    update_map.load_data()
     # update_map.tick(ludum_dare)
 
     application.listen(options.port)

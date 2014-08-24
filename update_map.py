@@ -1,6 +1,6 @@
 import urllib2, re, sys, json, collections, datetime, time, os
 
-regex_authors = re.compile(r'GLatLng[(]([-]?\d+[.][-]?\d+)[,](\d+[.]\d+).+author/([^/]+)')
+regex_authors = re.compile(r'GLatLng[(]([-]?\d+[.]\d+)[,]([-]?\d+[.]\d+).+author/([^/]+)')
 regex_author_entries = re.compile(r'../../([^/]+)/\?action=preview\&uid=(\d+)')
 regex_comp_entries = re.compile(r"<a href='\?action=preview&uid=([0-9]+)'><img src='([^']*)'><div class='title'><i>(.*?)</i></div>(.*?)</a></div>")
 regex_author = re.compile(r'../author/([^/]+)')

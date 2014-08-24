@@ -25,7 +25,7 @@ def load_ip_locations():
         f = zf.open('GeoLite2-City-CSV_20140805/GeoLite2-City-Locations.csv', 'r').read().split('\n')
         for line in f[1:-1]:
             line = line.split(',')
-            locations[line[0]] = line
+            locations[line[0]] = tuple(map(intern,line))
         print len(locations), "locations"
         f = zf.open('GeoLite2-City-CSV_20140805/GeoLite2-City-Blocks.csv', 'r').read().split('\n')
         for line in f[1:-1]:
@@ -37,14 +37,17 @@ def load_ip_locations():
                 network_start_ip = ip_to_32(network_start_ip[7:].split(',')[0])
                 ips.append((network_start_ip, network_mask_length, locations.get(geoname_id),
                     locations.get(registered_country_geoname_id), locations.get(represented_country_geoname_id),
-                    postal_code, float(lat) if lat else None, float(lng) if lng else None,
-                    int(is_anonymous_proxy), int(is_satellite_provider)))
+                    intern(postal_code), float(lat) if lat else None, float(lng) if lng else None,
+                    bool(is_anonymous_proxy), bool(is_satellite_provider)))
         ips.sort()
         print len(ips), "ips"
 
 def resolve_ip(ip):
     if ips:
-        ip = ip_to_32(ip)
+        try:
+            ip = ip_to_32(ip)
+        except (ValueError, IndexError): # ip6?
+            return
         i = bisect.bisect_right(ips, (ip, ))
         if ips[i][0] > ip:
             i -= 1

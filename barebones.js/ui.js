@@ -875,7 +875,10 @@ UIComponent.prototype = {
 			}
 			this.setSize(this.preferredSize());
 		}
+		if(this.afterLayout)
+			this.afterLayout();
 	},
+	afterLayout: null,
 	draw: function(ctx) {},
 	drawBg: function(ctx) {
 		var	border = this.border,
@@ -1100,6 +1103,29 @@ UICtrlIcon.prototype = {
 	},
 };
 loadFile("image","data/ctrl_icons.png",function(tex) { UICtrlIcon.prototype.tex = tex; });
+
+function UIImage(path) {
+	UIComponent.call(this);
+	this.image = null;
+	this.setImage(path);
+}
+UIImage.prototype = {
+	__proto__: UIComponent.prototype,
+	preferredSize: function() {
+		var im = this.image;
+		return [im? im.width: 0, im? im.height: 0];
+	},
+	setImage: function(path) {
+		var self = this;
+		loadFile("image", path, function(image) { self.image = image; self.layout(); });
+	},
+	draw: function(ctx) {
+		if(!this.image) return;
+		ctx.drawRect(this.image,this.getFgColour(),
+			this.x1,this.y1,this.x2,this.y2,
+			0,0,1,1);
+	},
+};
 
 function UIButton(text,onClick,tag,leftIcon,rightIcon) {
 	this.label = new UILabel(text,UI.defaults.btn.txtOutline);
