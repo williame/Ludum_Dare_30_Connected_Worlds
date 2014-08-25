@@ -164,16 +164,19 @@ function user_colour(user, subdue) {
 		return [1,b,b,1]; // red
 }
 
-function draw_user(user,mvpInv,pin) {
+function draw_user(user,mvpInv,pin,pin_bg) {
 	var p = user.position.to_mercator();
 	p = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, p));
 	var x = p[0], y = p[1];
 	user.screen_pos = [x, y];
+	if(pin_bg && (user == window.user || user == selected_user || user.commented_on_us || user.we_commented_on_them))
+		ctx.drawRect(pin_bg,OPAQUE,x-pin.width/2,y-pin.height,x+pin.width/2,y,0,0,1,1);
 	ctx.drawRect(pin,user_colour(user),x-pin.width/2,y-pin.height,x+pin.width/2,y,0,0,1,1);
 }
 
 function update_ctx() {
 	var pin = getFile("image", "data/pin.png");
+	var pin_bg = getFile("image", "data/pin_bg.png");
 	if(!pin || !ctx.mvpMatrix)
 		return;
 	var mvpInv = mat4_inverse(ctx.mvpMatrix);
@@ -215,10 +218,10 @@ function update_ctx() {
 	for(var u in users) {
 		u = users[u];
 		if(u.position)
-			draw_user(u,mvpInv,pin);
+			draw_user(u,mvpInv,pin,pin_bg);
 	}
 	if(!user.uid && user.position)
-		draw_user(user,mvpInv,pin);
+		draw_user(user,mvpInv,pin,pin_bg);
 	if(selected_user) {
 		var font = UI.fonts["default"] || null;
 		var pos = selected_user.position.to_mercator();
@@ -240,6 +243,7 @@ function new_game() {
 	gl.clearColor.apply(gl,bg);
 	onResize();
 	loadFile("image", "data/pin.png", update_ctx);
+	loadFile("image", "data/pin_bg.png", update_ctx);
 	try {
 		var aliasedLineRange = gl.getParameter(gl.ALIASED_LINE_WIDTH_RANGE);
 		if(aliasedLineRange)

@@ -56,9 +56,16 @@ function slide_anim(element, appear, after, speed) {
 	ticks.push(slide);
 }
 
+function colourToHex(colour) {
+	return 'rgb('+	((255*colour[0])|0)+','+
+			((255*colour[1])|0)+','+
+			((255*colour[2])|0)+')';
+}
+
 function onUserClick(user) {
 	var div = document.createElement('div');
 	div.className = 'middle';
+	div.style.backgroundColor = user == window.user? "black": colourToHex(user_colour(user, true));
 	div.appendChild(create_text(user.name));
 	div.appendChild(document.createElement('br'));
 	var thumb = document.createElement('img');
@@ -66,12 +73,21 @@ function onUserClick(user) {
 	div.appendChild(thumb);
 	div.appendChild(document.createElement('br'));
 	for(var t in user.targets)
-		div.appendChild(create_text((t? ", ": "") + user.targets[t][1]));
+		div.appendChild(create_text((t != 0? ", ": "") + user.targets[t][1]));
 	div.appendChild(document.createElement('br'));
+	if(user.commented_on_us) {
+		div.appendChild(create_text("\u2714 has commented on you!"));
+		div.appendChild(document.createElement('br'));
+	}
+	if(user.we_commented_on_them) {
+		div.appendChild(create_text("\u2714 we have commented on it!"));
+		div.appendChild(document.createElement('br'));
+	}
 	var play = document.createElement('a');
 	play.appendChild(create_text("Play and comment!"));
 	play.href = "http://www.ludumdare.com/compo/ludum-dare-30/?action=preview&uid=" + user.uid;
 	play.target = "_blank";
+	play.style.color = "white";
 	div.appendChild(play);
 	var properMouseDown = window.onMouseDown;
 	var dismiss = window.onMouseDown = function() {

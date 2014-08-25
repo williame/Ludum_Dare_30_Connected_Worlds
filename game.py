@@ -18,7 +18,8 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
         self.origin = self.request.headers.get("origin","")
         self.userAgent = self.request.headers.get("user-agent")
         print "connection",self.request.remote_ip, self.origin, self.userAgent
-        if not any(map(self.origin.startswith, (options.origin, "http://31.192.226.244:", "http://localhost:"))):
+        if not any(map(self.origin.startswith, (options.origin, "http://31.192.226.244:",
+            "http://localhost:", "http://williame.github.io"))):
             print "kicking out bad origin"
             self.write_message('{"chat":[{"Will":"if you fork the code, you need to run your own server!"}]}')
             self.close()
