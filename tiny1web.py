@@ -214,6 +214,8 @@ class APIHandler(BaseHandler):
                     self.write("<td>%s</td>"%column)
                 self.write("</tr>")
             self.write("</table><p>as at: %s</p></body></html>"%now())
+        elif entryPoint == "get_game_info":
+            self.write(game.get_info())
         else:
             raise tornado.web.HTTPError(404)
     def post(self,entryPoint):

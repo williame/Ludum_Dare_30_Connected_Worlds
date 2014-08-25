@@ -459,7 +459,7 @@ UIContext.prototype = {
 					buffer.transform.call(this,mvp);
 				if(inited)
 					gl.uniformMatrix4fv(program.mvp,false,mvp);
-			} else if(len = (buffer.stop >= 0? buffer.stop: this.data)-buffer.start) {
+			} else if((len = (buffer.stop >= 0? buffer.stop: this.data)-buffer.start)) {
 				if(!inited) {
 					this._initShader(mvp,program);
 					inited = true;

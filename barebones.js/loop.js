@@ -113,7 +113,6 @@ function init(canvas) {
 			onKeyDown = function(evt) {
 				evt.cancelBubble = true;
 				evt.preventDefault();
-				console.log("down", evt.which);
 				if(!keys[evt.which]) {
 					keys[evt.which] = true;
 					handleEvent("onKeyDown",evt,keys);

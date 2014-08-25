@@ -31,7 +31,7 @@ class DotDict(collections.defaultdict):
         collections.defaultdict.__init__(self, None, *args)
 
 comps = collections.defaultdict(lambda: len(comps))
-seq_lock = threading.Lock()
+seq_lock = threading.RLock()
 seq, comments_count = 0, 0
 
 debug_jobs = False

@@ -5,31 +5,49 @@ var debug = false;
 function is_interactive() { return debug || server_websocket; }
 
 var DEG2RAD = Math.PI/180;
+var RAD2DEG = 180/Math.PI;
 var intro_millis = 1500;
 
-function to_mercator(lng, lat) {
-	lng *= DEG2RAD;
-	lng = 180.0/Math.PI * Math.log(Math.tan(Math.PI/4.0+lng*DEG2RAD/2.0));
-	lat *= DEG2RAD;
-	return [lng, lat];
+function LatLng(lat,lng) {
+	assert(this instanceof LatLng);
+	this.lat = lat;
+	this.lng = lng;
 }
+LatLng.prototype = {
+	to_mercator: function() {
+		var y = this.lat * DEG2RAD;
+		y = RAD2DEG * Math.log(Math.tan(Math.PI/4.0+y*DEG2RAD/2.0));
+		return [this.lng * DEG2RAD, y, 0];
+	},
+	distance: function(other) {
+		assert(other instanceof LatLng);
+		var	lng1 = this.lng, lat1 = this.lat,
+			lng2 = other.lng, lat2 = other.lat,
+			dlat = (lat2-lat1) * DEG2RAD,
+			dlng = (lng2-lng1) * DEG2RAD;
+		lat1 *= DEG2RAD;
+		lat2 *= DEG2RAD;			
+		var	a = Math.sin(dlat/2) * Math.sin(dlat/2) +
+				Math.cos(lat1) * Math.cos(lat2) *
+				Math.sin(dlng/2) * Math.sin(dlng/2),
+			c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+		return 6371 * c;
+	},
+};
+LatLng.from_mercator = function(pos) {
+	var x = pos[0], y = pos[1];
+	return new LatLng(RAD2DEG * RAD2DEG*Math.log(Math.tan(Math.PI/4.0+y*DEG2RAD/2.0)),x * RAD2DEG);
+};
 
-function distance_great_circle(lng1,lat1,lng2,lat2) {
-	var	dlat = (lat2-lat1),
-		dlng = (lng2-lng2),
-		a =	Math.sin(dlat/2) * Math.sin(dlat/2) +
-			Math.cos(lat1) * Math.cos(lat2) *
-			Math.sin(dlng/2) * Math.sin(dlng/2),
-		c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-	return 6371 * c;
-}
 
-function nearest_users(lng,lat) {
+function nearest_users(pos) {
 	var candidates = [];
 	for(var u in users) {
 		u = users[u];
-		var distance = distance_great_circle(lng,lat,u.position[0],u.position[1]);
-		candidates.push([distance,u]);
+		if(u.position) {
+			var distance = pos.distance(u.position);
+			candidates.push([distance,u]);
+		}
 	}
 	candidates.sort(function(a,b) { return a[0]-b[0]; });
 	return candidates;
@@ -129,10 +147,11 @@ var world_map = {
 	},
 };
 
-var mercator_bg = [-180, -94, 180, 90]; // our map isn't perfectly aligned
+var	mercator_bl = new LatLng(-94, -180).to_mercator(),
+	mercator_tr = new LatLng(90, 180).to_mercator(); // our map isn't perfectly aligned
 
 function draw_user(user,pin) {
-	var p = [user.position[1], user.position[0], 0];
+	var p = user.position.to_mercator();
 	p = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, p));
 	var x = p[0], y = p[1];
 	user.screen_pos = [x, y];
@@ -145,20 +164,19 @@ function update_ctx() {
 	if(!pin || !ctx.mvpMatrix)
 		return;
 	mvpInv = mat4_inverse(ctx.mvpMatrix);
-	var tl = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
-		vecN(to_mercator(mercator_bg[0],mercator_bg[1]),0)));
-	var br = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
-		vecN(to_mercator(mercator_bg[2],mercator_bg[3]),0)));
+	var bl = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, mercator_bl));
+	var tr = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, mercator_tr));
+	var draw_map = function(map) { ctx.drawRect(map,OPAQUE,bl[0],tr[1],tr[0],bl[1],0,0,1,1); };
 	ctx.clear();
 	var map_bg = getFile("image", "data/map1.jpg");
 	var map_fg = getFile("image", "data/map1.png");
 	if(world_map.mask) {
 		ctx.insert(function() {
 			gl.enable(gl.STENCIL_TEST);
-			gl.stencilFunc(gl.NEVER, 1, 0xff);
+			gl.stencilFunc(gl.NEVER,1,0xff);
 			gl.stencilOp(gl.REPLACE,gl.KEEP,gl.KEEP);
 		});
-		ctx.drawRect(world_map.mask,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
+		draw_map(world_map.mask);
 		if(map_bg)
 			ctx.insert(function() {
 				gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP);
@@ -166,7 +184,7 @@ function update_ctx() {
 			});
 	}
 	if(map_bg) {
-		ctx.drawRect(map_bg,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
+		draw_map(map_bg);
 	}
 	if(world_map.mask)
 		ctx.insert(function() { gl.disable(gl.STENCIL_TEST); });
@@ -174,9 +192,14 @@ function update_ctx() {
 	if(map_fg) {
 		if(world_map.mask)
 			ctx.insert(function() { gl.enable(gl.STENCIL_TEST); });
-		ctx.drawRect(map_fg,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
+		draw_map(map_fg);
 		if(world_map.mask)
 			ctx.insert(function() { gl.disable(gl.STENCIL_TEST); });
+	}
+	if(world_map.mask) {
+		ctx.insert(function() { gl.blendFunc(gl.DST_COLOR,gl.ONE_MINUS_SRC_ALPHA); });
+		draw_map(world_map.mask);
+		ctx.insert(function() { gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); });
 	}
 	for(var u in users) {
 		u = users[u];
@@ -212,35 +235,53 @@ function new_game() {
 function connect_to_server() {
 	server_websocket = create_websocket_connection(function(evt) {
 			data = JSON.parse(evt.data);
-			console.log("got", data);
-			if(data.locations) {
-				for(var i in data.locations) {
-					var loc = data.locations[i];
-					var uid = loc[0], lng = loc[1][0], lat = loc[1][1], name = loc[2], targets = loc[3];
-					var u = users[uid] = users[uid] || {};
-					u.uid = uid;
-					u.name = name;
-					u.position = to_mercator(lng, lat);
-					u.targets = targets;
+			console.log("RECV:", data);
+			if(data.seq)
+				server_websocket.seq = data.seq;
+			if("ip_lookup" in data) {
+				if(data.ip_lookup) {
+					ip_pos = data.ip_lookup;
+					go_to(new LatLng(ip_pos[6],ip_pos[7]).to_mercator(),0.3);
 				}
 				prompt_for_user();
 			}
-			if(data.ip_lookup) {
-				var x = data.ip_lookup[7] * DEG2RAD;
-				var y = data.ip_lookup[6] * DEG2RAD;
-				ip_pos = data.ip_lookup;
-				go_to(x,y,0.3);
+			if(data.users) {
+				for(var u in data.users) {
+					u = data.users[u];
+					if(u.position)
+						u.position = new LatLng(u.position[0], u.position[1]);
+					users[u.uid] = u;
+					if(user.uid == u.uid) user = u;
+				}
+				update_ctx();
+			}
+			if(data.commenters) {
+				world_map.mask = make_mask(user.uid, world_map.mask);
 			}
 			if(data.user) {
+				var old_pos = user.position;
 				users[data.user.uid] = data.user;
+				if(data.user.uid == user.uid)
+					user = data.user;
 				data.user.full = true;
 				if(data.user.position) {
-					data.user.position = to_mercator(data.user.position[0],data.user.position[1]);
+					data.user.position = new LatLng(data.user.position[0],data.user.position[1]);
 					update_ctx();
 				}
 				if(data.token == "guess") {
 					user = data.user;
-					prompt_position(user.name);
+					if(user.position) {
+						prompt_position(user.name + "!  ... LD already has a last reported location for you on file; can you double check please?");
+					} else if(old_pos) {
+						// aha! set it
+						user.position = old_pos;
+						server_websocket.send(JSON.stringify({
+							"cmd":"set_location",
+							"uid":data.user.uid,
+							"position":[user.position.lat,user.position.lng],
+						}));
+						user_ready();
+					}
 				}
 			} else if(data.token == "guess") {
 				prompt_unknown_user(data.uid || data.username);
@@ -249,25 +290,26 @@ function connect_to_server() {
 				UI.addMessage(10,name,data.chat[name]);
 			update_ctx();
 	});
-	server_websocket.send(JSON.stringify({"cmd":"get_locations"}))
+	server_websocket.send(JSON.stringify({"cmd":"get_users"}))
 }
 
-var anim_path = [[now(),0,0,1.5]];
+var anim_path = [[now(),[0,0],1.5]];
 
 function clamp_zoom(zoom) { return Math.max(Math.min(zoom, 1.5), 0.1); }
 
-function go_to(x,y,zoom,speed) {
+function go_to(pos,zoom,speed) {
 	var p = anim_path[anim_path.length-1];
 	if(anim_path.length == 1)
 		p[0] = now();
-	zoom = clamp_zoom(zoom || p[3]);
+	zoom = clamp_zoom(zoom || p[2]);
 	if(anim_path.length == 3) {
-		anim_path[2] = [p[0],x,y,zoom];
+		anim_path[1] = [p[0],pos,zoom];
 	} else {
-		var distance = vec2_length([x-p[1],y-p[2]]);
+		var distance = vec2_length([pos[0]-p[1][0],pos[1]-p[1][1]]);
 		var duration = distance? distance * (speed || 1000): (speed || 1000);
-		anim_path.push([p[0]+duration,x,y,zoom]);
+		anim_path.push([p[0]+duration,pos,zoom]);
 	}
+	console.log("go_to",pos,zoom,speed,anim_path);
 }
 
 function current_anim() {
@@ -276,17 +318,17 @@ function current_anim() {
 		anim_path.shift();
 	}
 	var 	start = anim_path[0],
-		x = start[1],
-		y = start[2],
-		zoom = start[3];
+		x = start[1][0],
+		y = start[1][1],
+		zoom = start[2];
 	if(anim_path.length == 1)
 		start[0] = now;
 	if(anim_path.length > 1 && start[0] < now) {
 		var	next = anim_path[1],
 			t = (now - start[0]) / (next[0] - start[0]);
-		x = lerp(x, next[1], t);
-		y = lerp(y, next[2], t);
-		zoom = lerp(zoom, next[3], t);
+		x = lerp(x, next[1][0], t);
+		y = lerp(y, next[1][1], t);
+		zoom = lerp(zoom, next[2], t);
 	}
 	return [x,y,zoom];
 }
@@ -310,9 +352,9 @@ function onResize() {
 function onMouseWheel(evt, delta) {
 	if(!is_interactive()) return;
 	if(anim_path.length == 1) {
-		var zoom = clamp_zoom(anim_path[0][3] + delta * 0.001);
-		if(zoom != anim_path[0][3]) {
-			anim_path[0][3] = zoom;
+		var zoom = clamp_zoom(anim_path[0][2] + delta * 0.001);
+		if(zoom != anim_path[0][2]) {
+			anim_path[0][2] = zoom;
 			onResize();
 		}
 	}
@@ -323,15 +365,15 @@ function onKeyDown(evt) {
 		switch(evt.which) {
 		case 187: // +
 			var last = anim_path[anim_path.length-1];
-			var zoom = clamp_zoom(last[3] - 0.2);
-			if(zoom != last[3])
-				go_to(last[1],last[2],zoom,1000);
+			var zoom = clamp_zoom(last[2] - 0.2);
+			if(zoom != last[2])
+				go_to(last[1],zoom,1000);
 			break;
 		case 189: // -
 			var last = anim_path[anim_path.length-1];
-			var zoom = clamp_zoom(last[3] + 0.2);
-			if(zoom != last[3])
-				go_to(last[1],last[2],zoom,1000);
+			var zoom = clamp_zoom(last[2] + 0.2);
+			if(zoom != last[2])
+				go_to(last[1],zoom,1000);
 			break;
 		}
 	}
@@ -357,26 +399,18 @@ function onKeyDown(evt) {
 function onMouseDown(evt) {
 	if(!is_interactive()) return;
 	var pos = unproject(evt.clientX, canvas.height-evt.clientY, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0];
-	go_to(pos[0], pos[1], anim_path[anim_path.length-1][3] * 0.5);
+	go_to(pos, anim_path[anim_path.length-1][2] * 0.5);
 }
 
 function onMouseMove(evt) {
 	if(!is_interactive()) return;
-	var pos = [evt.clientX, canvas.height-evt.clientY];
-	var best, best_score;
-	for(var user in users) {
-		user = users[user];
-		if(user.screen_pos) {
-			var x = user.screen_pos[0], y = user.screen_pos[1];
-			var d = vec2_distance([x, y-16], pos);
-			if(!best || d < best_score) {
-				best = user;
-				best_score = d;
-			}
-		}
-	}
-	if(best && best_score < 10)
-		console.log("click", best, best_score);
+	var pos = LatLng.from_mercator(unproject(evt.clientX,canvas.height- evt.clientY,
+		world_map.mvpMatrix, mat4_identity,
+		[0,0,canvas.width,canvas.height])[0]);
+	var candidates = nearest_users(pos);
+	if(candidates.length && candidates[0][0] < 10) {
+		console.log("highlight", candidates[0][1]);
+	}	
 }
 
 function render() {
@@ -404,8 +438,8 @@ function render() {
 		else if(keys[39] && !keys[37]) // right
 			x = 0.005 * elapsed;
 		if(x || y) {
-			anim_path[0][1] += x * anim_path[0][3];
-			anim_path[0][2] += y * anim_path[0][3];
+			anim_path[0][1][0] += x * anim_path[0][2];
+			anim_path[0][1][1] += y * anim_path[0][2];
 			onResize();
 		}
 	}

@@ -90,21 +90,33 @@ function prompt_intro() {
 	slide_anim(div, true, function() {
 		loadFile("image", "data/map1.jpg", update_ctx);
 		loadFile("image", "data/map1.png", update_ctx);
-		world_map.mask = make_mask(null,null);
 	});
 }
 
-function prompt_guess_username(lng,lat) {
-	var candidates = nearest_users(lng,lat);
-	if(candidates[0][0] > 300) { //KM
-		go_to(lat,lng,0.3);
-		user.position = [lng,lat];
+function user_ready() {
+	world_map.mask = make_mask(user.uid, world_map.mask);
+	go_to(user.position.to_mercator(),0.3);
+	canvas.focus();
+	server_websocket.send(JSON.stringify({
+			"cmd":"get_comments",
+			"seq":server_websocket.seq,
+			"uid":user.uid,
+	}));
+			
+}
+
+function prompt_guess_username(position) {
+	var candidates = nearest_users(position);
+	if(candidates[0][0] > 50) { //KM
+		go_to(position.to_mercator(),0.3);
+		user.position = position;
 		prompt_for_username("Unfortunately, the nearest known user is currently " + 
 			candidates[0][0].toFixed(0) + "km away, so lets get you connected ASAP!");
 		return;
 	}
+	console.log("guessing",position,"->",candidates[0]);
 	user = candidates[0][1];
-	go_to(user.position[1], user.position[0],0.3);	
+	go_to(user.position.to_mercator(),0.3);	
 }
 
 function prompt_position(greeting) {
@@ -119,34 +131,45 @@ function prompt_position(greeting) {
 	div.appendChild(create_text("&nbsp;world...&nbsp;"));
 	if(!user.position && ip_pos) {
 		console.log("setting position from ip guess");
-		var x = ip_pos[7], y = ip_pos[6];
-		user.position = [y  * DEG2RAD, x * DEG2RAD];
+		user.position = new LatLng(ip_pos[6], ip_pos[7]);
 	}
 	var ok_button = create_anchor("My location's ok!", function() {
 			slide_anim(div, false, function() {
 					div.parentNode.removeChild(div);
 					window.onMouseDown = properOnMouseDown;
-					prompt_explain();
+					if(user.uid) {
+						server_websocket.send(JSON.stringify({
+								"cmd":"set_location",
+								"uid":user.uid,
+								"position":[user.position.lat,user.position.lng],
+						}));
+						user_ready();
+					} else
+						prompt_for_username();
 			});
 		});
 	div.appendChild(ok_button);
 	if(user.position)
-		go_to(user.position[1], user.position[0], 0.3);
+		go_to(user.position.to_mercator(),0.3);
 	else
 		ok_button.style.display = "none";
 	document.body.appendChild(div);
 	var properOnMouseDown = window.onMouseDown;
 	slide_anim(div, true, function() {
 		window.onMouseDown = function(evt) {
-			var pos = unproject(evt.clientX, canvas.height-evt.clientY, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0];
-			window.onMouseDown = properOnMouseDown;
-			prompt_guess_username(pos[1], pos[0]);
-			slide_anim(div, false, function() { div.parentNode.removeChild(div); });
-			/*
-			go_to(pos[0], pos[1], 0.3);
-			user.position = [pos[1],pos[0]];
-			ok_button.style.display = "inline";
-			*/
+			var mercator = unproject(evt.clientX, canvas.height-evt.clientY, 
+				world_map.mvpMatrix, mat4_identity,
+				[0,0,canvas.width,canvas.height])[0];
+			var latlng = LatLng.from_mercator(mercator);
+			if(!user.uid) {
+				window.onMouseDown = properOnMouseDown;
+				prompt_guess_username(latlng);
+				slide_anim(div, false, function() { div.parentNode.removeChild(div); });
+			} else {
+				go_to(mercator, 0.3);
+				user.position = latlng;
+				ok_button.style.display = "inline";
+			}
 		};
 		canvas.focus();
 	});
@@ -222,7 +245,7 @@ function prompt_for_user() {
 	div.appendChild(create_anchor("Yes, good guess!", function() {
 		slide_anim(div, false, function() {
 			div.parentNode.removeChild(div);
-			prompt_guess_username(ip_pos[6]*DEG2RAD,ip_pos[7]*DEG2RAD);
+			prompt_guess_username(new LatLng(ip_pos[6],ip_pos[7]));
 		});
 	}));
 	div.appendChild(create_text('&nbsp;'));
