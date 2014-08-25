@@ -56,6 +56,35 @@ function slide_anim(element, appear, after, speed) {
 	ticks.push(slide);
 }
 
+function onUserClick(user) {
+	var div = document.createElement('div');
+	div.className = 'middle';
+	div.appendChild(create_text(user.name));
+	div.appendChild(document.createElement('br'));
+	var thumb = document.createElement('img');
+	thumb.src = user.img;
+	div.appendChild(thumb);
+	div.appendChild(document.createElement('br'));
+	for(var t in user.targets)
+		div.appendChild(create_text((t? ", ": "") + user.targets[t][1]));
+	div.appendChild(document.createElement('br'));
+	var play = document.createElement('a');
+	play.appendChild(create_text("Play and comment!"));
+	play.href = "http://www.ludumdare.com/compo/ludum-dare-30/?action=preview&uid=" + user.uid;
+	play.target = "_blank";
+	div.appendChild(play);
+	var properMouseDown = window.onMouseDown;
+	var dismiss = window.onMouseDown = function() {
+			div.parentNode.removeChild(div);
+			window.onMouseDown = properMouseDown;
+			canvas.focus();
+			return true;
+	};
+	play.addEventListener('click',dismiss);
+	document.body.appendChild(div);
+	div.focus();
+}
+
 function prompt_intro() {
 	var div = document.createElement('div');
 	div.className = "bottom";
@@ -106,7 +135,12 @@ function toolbar() {
 	div.className = 'bottom';
 	div.style.textAlign = 'right';
 	canvas.focus();
+	var refresh_count = 0;
 	div.appendChild(create_button("data/button_refresh.png", function() {
+			if(refresh_count++ % 3 == 2)
+				alert("We SCRAPE the Ludum Dare site, and we don't want\n" +
+					"to put it under any load, so we only do it a few times\n"+
+					"an hour. Be patient, and check back in a short while!");
 			server_websocket.send(JSON.stringify({
 				cmd: "get_users",
 				seq: server_websocket.seq,

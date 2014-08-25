@@ -417,32 +417,31 @@ function onKeyDown(evt) {
 	}
 }
 
-function onUserClick(user) {
-	alert("click on "+user.name);
+function mouse_to_mercator(evt, y_adjust) {
+	var 	x = evt.clientX,
+		y = canvas.height - evt.clientY + (y_adjust || 0);
+	return unproject(x, y, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0];
 }
 
-function user_nearest_mouse(evt,adjust) {
+function user_nearest_mouse(evt,y_adjust) {
 	if(!is_interactive()) return null;
-	var 	x = evt.clientX,
-		y = canvas.height - evt.clientY - (adjust? 16: 0),
-		pos = unproject(x, y, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0],
-		candidates = nearest_users(LatLng.from_mercator(pos));
-	if(candidates.length && candidates[0][0] < 20)
+	candidates = nearest_users(LatLng.from_mercator(mouse_to_mercator(evt,y_adjust)));
+	if(candidates.length && candidates[0][0] < 100)
 		return candidates[0][1];
 	return null;
 }
 
 function onMouseDown(evt) {
 	canvas.focus();
-	var u = user_nearest_mouse(evt,true);
+	var u = user_nearest_mouse(evt,-16);
 	if(u && selected_user == u) {
 		onUserClick(u);
 	} else {
 		selected_user = u;
 		if(u)
-			go_to(u.position.to_mercator(), anim_path[anim_path.length-1][2] * 0.5);
+			go_to(u.position.to_mercator(), anim_path[anim_path.length-1][2]);
 		else
-			update_ctx();
+			go_to(mouse_to_mercator(evt), anim_path[anim_path.length-1][2]);
 	}
 }
 
