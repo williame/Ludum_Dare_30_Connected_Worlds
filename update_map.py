@@ -262,6 +262,15 @@ def tick(ludum_dare):
         f.write("%d,%d,%d,%d,%d,%d,%d\n" % (int(start_time),int(elapsed),len(authors_by_uid),
             seq,comments_count,len(authors_with_position),comments_by_positioners))
         
+def start(ludum_dare,sleep):
+    def run():
+        while True:
+            tick(ludum_dare)
+            time.sleep(sleep)
+    thread = threading.Thread(target=run)
+    thread.setDaemon(True)
+    thread.start()
+        
 if __name__ == "__main__":
     ludum_dare = 'ludum-dare-27-warmup'
     load_data(ludum_dare)

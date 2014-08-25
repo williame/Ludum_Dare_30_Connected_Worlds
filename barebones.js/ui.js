@@ -284,20 +284,19 @@ UIContext.prototype = {
 		return pts;
 	},
 	fillRoundedRect: function(colour,margin,x1,y1,x2,y2) {
+		assert(this instanceof UIContext);
 		var	corner = UIContext.corners[margin] = UIContext.corners[margin] || this._makeCorners(margin),
-			pts = [],
-			addPoint = this._fillRoundedRect_addPoint,
-			drawRect = this.drawRect;
+			pts = [];
 		for(var pt in corner) {
 			pt = corner[pt];
-			addPoint(pts,pt,x1,-1,y1,-1);
-			addPoint(pts,pt,x2,+1,y1,-1);
-			addPoint(pts,pt,x1,-1,y2,+1);
-			addPoint(pts,pt,x2,+1,y2,+1);
+			this._fillRoundedRect_addPoint(pts,pt,x1,-1,y1,-1);
+			this._fillRoundedRect_addPoint(pts,pt,x2,+1,y1,-1);
+			this._fillRoundedRect_addPoint(pts,pt,x1,-1,y2,+1);
+			this._fillRoundedRect_addPoint(pts,pt,x2,+1,y2,+1);
 		}
-		drawRect.call(this,programs.blankTex,colour,x1,y1-margin,x2,y2+margin,0,0,1,1); // sets up right texture and colour buffer
-		drawRect.call(this,programs.blankTex,colour,x1-margin,y1,x1,y2,0,0,1,1);
-		drawRect.call(this,programs.blankTex,colour,x2,y1,x2+margin,y2,0,0,1,1);
+		this.drawRect(programs.blankTex,colour,x1,y1-margin,x2,y2+margin,0,0,1,1); // sets up right texture and colour buffer
+		this.drawRect(programs.blankTex,colour,x1-margin,y1,x1,y2,0,0,1,1);
+		this.drawRect(programs.blankTex,colour,x2,y1,x2+margin,y2,0,0,1,1);
 		this.data.push.apply(this.data,pts);
 	},
 	_fillRoundedRect_addPoint: function(pts,pt,x,xdir,y,ydir) {
@@ -323,11 +322,11 @@ UIContext.prototype = {
 			addPoint(pts,scale,pt,x1,-1,y2,+1);
 			addPoint(pts,scale,pt,x2,+1,y2,+1);
 		}
-		drawRect.call(programs.blankTex,colour,x1,y1-margin,x2,y1-margin+width,0,0,1,1); // sets up right texture and colour buffer
-		drawRect.call(programs.blankTex,colour,x1,y2+margin-width,x2,y2+margin,0,0,1,1);
-		drawRect.call(programs.blankTex,colour,x1-margin,y1,x1-margin+width,y2,0,0,1,1);
-		drawRect.call(programs.blankTex,colour,x2+margin-width,y1,x2+margin,y2,0,0,1,1);
-		this.data.apply(this.data,pts);
+		drawRect.call(this,programs.blankTex,colour,x1,y1-margin,x2,y1-margin+width,0,0,1,1); // sets up right texture and colour buffer
+		drawRect.call(this,programs.blankTex,colour,x1,y2+margin-width,x2,y2+margin,0,0,1,1);
+		drawRect.call(this,programs.blankTex,colour,x1-margin,y1,x1-margin+width,y2,0,0,1,1);
+		drawRect.call(this,programs.blankTex,colour,x2+margin-width,y1,x2+margin,y2,0,0,1,1);
+		this.data.push.apply(this.data,pts);
 	},
 	_drawRoundedRect_addPoint: function(pts,scale,pt,x,xdir,y,ydir) {
 		pts.push(

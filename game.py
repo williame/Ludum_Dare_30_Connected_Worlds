@@ -3,6 +3,8 @@ import random, json, time, traceback, collections
 import tornado.websocket
 from tornado.options import options
 
+options.define("interval",default=60*10,type=int)
+
 import update_map, geoloc
 
 ludum_dare = 'ludum-dare-30'
@@ -33,7 +35,6 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
             print "(ip %s -> %s)" % (ip, ip_lookup)
         self.write_message(json.dumps({"ip":ip,"ip_lookup":ip_lookup}));
     def on_message(self,message):
-        global seq
         self.lastMessage = time.time()
         try:
             message = json.loads(message)
@@ -43,9 +44,10 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
             seq = message.get("seq") or 0
             if cmd == "get_users":
                 users = []
-                for author in update_map.authors_by_uid.values():
-                    if author.seq > seq and author.get("position") and ludum_dare_id in author.comps:
-                        users.append(author)
+                if seq < update_map.seq:
+                    for author in update_map.authors_by_uid.values():
+                        if author.seq > seq and author.get("position") and ludum_dare_id in author.comps:
+                            users.append(author)
                 self.write_message(json.dumps({"seq":update_map.seq,"users":users}))
             elif cmd == "get_user":
                 user = None
@@ -132,5 +134,4 @@ def get_info():
 def init():
     geoloc.load_ip_locations()
     update_map.load_data(ludum_dare)
-    if not update_map.authors_by_uid:
-        update_map.tick(ludum_dare)
+    update_map.start(ludum_dare, options.interval)
