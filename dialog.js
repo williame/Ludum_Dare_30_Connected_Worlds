@@ -89,6 +89,7 @@ function prompt_intro() {
 	document.body.appendChild(div);
 	slide_anim(div, true, function() {
 		loadFile("image", "data/map1.jpg", update_ctx);
+		world_map.mask = make_mask(null,null,0xff994c19);
 	});
 }
 

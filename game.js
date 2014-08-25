@@ -183,7 +183,8 @@ function new_game() {
 	}
 	loadFile("ArrayBuffer","external/TM_WORLD_BORDERS_SIMPL-0.3/TM_WORLD_BORDERS_SIMPL-0.3.shp",load_shapefile);
 	bg = ((255*bg[3]) << 24) | ((255*bg[2]) << 16) | ((255*bg[1]) << 8) | (255*bg[0]);
-	world_map.mask = make_mask(null,null,bg);
+	bg = 0xFFFFFFFF + bg + 1;
+	console.log("bg",bg.toString(16));
 }
 
 function connect_to_server() {
