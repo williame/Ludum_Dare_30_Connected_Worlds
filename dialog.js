@@ -92,11 +92,17 @@ function prompt_intro() {
 	});
 }
 
-function prompt_guess_username() {
-	var candidates = [];
-	for(var u in users) {
-		u = users[u];
+function prompt_guess_username(lng,lat) {
+	var candidates = nearest_users(lng,lat);
+	if(candidates[0][0] > 300) { //KM
+		go_to(lat,lng,0.3);
+		user.position = [lng,lat];
+		prompt_for_username("Unfortunately, the nearest known user is currently " + 
+			candidates[0][0].toFixed(0) + "km away, so lets get you connected ASAP!");
+		return;
 	}
+	user = candidates[0][1];
+	go_to(user.position[1], user.position[0],0.3);	
 }
 
 function prompt_position(greeting) {
@@ -125,15 +131,19 @@ function prompt_position(greeting) {
 	if(user.position)
 		go_to(user.position[1], user.position[0], 0.3);
 	else
-		ok_button.style.display = "hidden";
+		ok_button.style.display = "none";
 	document.body.appendChild(div);
 	var properOnMouseDown = window.onMouseDown;
 	slide_anim(div, true, function() {
 		window.onMouseDown = function(evt) {
 			var pos = unproject(evt.clientX, canvas.height-evt.clientY, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0];
-			go_to(pos[0], pos[1], anim_path[anim_path.length-1][3]);
+			prompt_guess_username(pos[1], pos[0]);
+			slide_anim(div, false, function() { div.parentNode.removeChild(div); });
+			/*
+			go_to(pos[0], pos[1], 0.3);
 			user.position = [pos[1],pos[0]];
 			ok_button.style.display = "inline";
+			*/
 		};
 		canvas.focus();
 	});
@@ -160,7 +170,7 @@ function prompt_unknown_user(user) {
 	slide_anim(div, true);
 }
 
-function prompt_for_username() {
+function prompt_for_username(msg) {
 	var lookup = function() {
 		var val = uid.value.trim();
 		if(val) {
@@ -179,6 +189,10 @@ function prompt_for_username() {
 	};
 	var div = document.createElement('div');
 	div.className = "bottom";
+	if(msg) {
+		div.appendChild(create_text(msg));
+		div.appendChild(document.createElement('br'));
+	}
 	div.appendChild(create_text("What's your Ludum Dare user name or ID?&nbsp;"));
 	var uid = document.createElement('input');
 	uid.addEventListener('keyup',function(evt) { if(evt.keyCode == 13) lookup(); });
@@ -202,14 +216,14 @@ function prompt_for_user() {
 		div.appendChild(create_anchor("Yes, good guess!", function() {
 			slide_anim(div, false, function() {
 				div.parentNode.removeChild(div);
-				prompt_guess_username();
+				prompt_guess_username(ip_pos[6]*DEG2RAD,ip_pos[7]*DEG2RAD);
 			});
 		}));
 		div.appendChild(create_text('&nbsp;'));
 		div.appendChild(create_anchor("Ha Ha not even close!", function() {
 			slide_anim(div, false, function() {
 				div.parentNode.removeChild(div);
-				prompt_for_username();
+				prompt_position();
 			});
 		}));
 	} else {
@@ -217,7 +231,7 @@ function prompt_for_user() {
 		div.appendChild(create_anchor("OK!", function() {
 			slide_anim(div, false, function() {
 				div.parentNode.removeChild(div);
-				prompt_for_username();
+				prompt_position();
 			});
 		}));
 	}

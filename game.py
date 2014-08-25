@@ -22,7 +22,7 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
             self.close()
         ip, ip_lookup = self.request.remote_ip, None
         ip_lookup = geoloc.resolve_ip(ip)
-        if not ip_lookup:
+        if False and not ip_lookup:
             ip = "%d.%d.%d.%d" % (random.randint(0,255),
                 random.randint(0,255),random.randint(0,255),random.randint(0,255))
             ip_lookup = geoloc.resolve_ip(ip);

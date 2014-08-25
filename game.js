@@ -14,6 +14,27 @@ function to_mercator(lng, lat) {
 	return [lng, lat];
 }
 
+function distance_great_circle(lng1,lat1,lng2,lat2) {
+	var	dlat = (lat2-lat1),
+		dlng = (lng2-lng2),
+		a =	Math.sin(dlat/2) * Math.sin(dlat/2) +
+			Math.cos(lat1) * Math.cos(lat2) *
+			Math.sin(dlng/2) * Math.sin(dlng/2),
+		c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+	return 6371 * c;
+}
+
+function nearest_users(lng,lat) {
+	var candidates = [];
+	for(var u in users) {
+		u = users[u];
+		var distance = distance_great_circle(lng,lat,u.position[0],u.position[1]);
+		candidates.push([distance,u]);
+	}
+	candidates.sort(function(a,b) { return a[0]-b[0]; });
+	return candidates;
+}
+
 function load_shapefile(data) {
 	var shp = new BinaryDataReader(data);
 	shp.seek(24);
@@ -58,6 +79,7 @@ var world_map = {
 	zoom: 1.5,
 	shapes: [],
 	start_time: null,
+	mask: null,
 	program: Program(
 		"precision mediump float;\n"+
 		"#define PI 3.1415926535897932384626433832795\n"+ // madness!
@@ -109,6 +131,15 @@ var world_map = {
 
 var mercator_bg = [-180, -94, 180, 90]; // our map isn't perfectly aligned
 
+function draw_user(user,pin) {
+	var p = [user.position[1], user.position[0], 0];
+	p = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, p));
+	var x = p[0], y = p[1];
+	user.screen_pos = [x, y];
+	var colour = (user == window.user)? [0,1,0,1]: OPAQUE;
+	ctx.drawRect(pin,colour,x-pin.width/2,y-pin.height,x+pin.width/2,y,0,0,1,1);
+}
+
 function update_ctx() {
 	var pin = getFile("image", "data/pin.png");
 	if(!pin || !ctx.mvpMatrix)
@@ -116,25 +147,22 @@ function update_ctx() {
 	mvpInv = mat4_inverse(ctx.mvpMatrix);
 	ctx.clear();
 	var map = getFile("image", "data/map1.jpg");
-	if(map) {
+	if(map && world_map.mask) {
 		var tl = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
 			vecN(to_mercator(mercator_bg[0],mercator_bg[1]),0)));
 		var br = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
 			vecN(to_mercator(mercator_bg[2],mercator_bg[3]),0)));
 		ctx.drawRect(map,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
+		ctx.drawRect(world_map.mask,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
 	}
 	ctx.inject(function() { world_map.draw(); });
-	for(var user in users) {
-		user = users[user];
-		if(user.position) {
-			var p = [user.position[1], user.position[0], 0];
-			p = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix, p));
-			var x = p[0], y = p[1];
-			user.screen_pos = [x, y];
-			var colour = (user == window.user)? [0,1,0,1]: OPAQUE;
-			ctx.drawRect(pin,colour,x-pin.width/2,y-pin.height,x+pin.width/2,y,0,0,1,1);
-		}
+	for(var u in users) {
+		u = users[u];
+		if(u.position)
+			draw_user(u,pin);
 	}
+	if(!user.uid && user.position)
+		draw_user(user,pin);
 	ctx.finish();
 }
 
@@ -142,7 +170,8 @@ function new_game() {
 	loading = true;
 	canvas.setAttribute('tabindex','0');
 	canvas.focus();
-	gl.clearColor(0.1,0.3,0.6,1);
+	var bg = [0.1,0.3,0.6,1];
+	gl.clearColor.apply(gl,bg);
 	onResize();
 	loadFile("image", "data/pin.png", update_ctx);
 	try {
@@ -153,6 +182,8 @@ function new_game() {
 		console.log("ERROR setting aliased line:", error);
 	}
 	loadFile("ArrayBuffer","external/TM_WORLD_BORDERS_SIMPL-0.3/TM_WORLD_BORDERS_SIMPL-0.3.shp",load_shapefile);
+	bg = ((255*bg[3]) << 24) | ((255*bg[2]) << 16) | ((255*bg[1]) << 8) | (255*bg[0]);
+	world_map.mask = make_mask(null,null,bg);
 }
 
 function connect_to_server() {
@@ -162,9 +193,10 @@ function connect_to_server() {
 			if(data.locations) {
 				for(var i in data.locations) {
 					var loc = data.locations[i];
-					var uid = loc[0], lng = loc[1][0], lat = loc[1][1], targets = loc[2];
+					var uid = loc[0], lng = loc[1][0], lat = loc[1][1], name = loc[2], targets = loc[3];
 					var u = users[uid] = users[uid] || {};
 					u.uid = uid;
+					u.name = name;
 					u.position = to_mercator(lng, lat);
 					u.targets = targets;
 				}
