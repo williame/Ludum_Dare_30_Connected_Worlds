@@ -89,7 +89,8 @@ function prompt_intro() {
 	document.body.appendChild(div);
 	slide_anim(div, true, function() {
 		loadFile("image", "data/map1.jpg", update_ctx);
-		world_map.mask = make_mask(null,null,0xff994c19);
+		loadFile("image", "data/map1.png", update_ctx);
+		world_map.mask = make_mask(null,null);
 	});
 }
 
@@ -138,6 +139,7 @@ function prompt_position(greeting) {
 	slide_anim(div, true, function() {
 		window.onMouseDown = function(evt) {
 			var pos = unproject(evt.clientX, canvas.height-evt.clientY, world_map.mvpMatrix, mat4_identity, [0,0,canvas.width,canvas.height])[0];
+			window.onMouseDown = properOnMouseDown;
 			prompt_guess_username(pos[1], pos[0]);
 			slide_anim(div, false, function() { div.parentNode.removeChild(div); });
 			/*
@@ -209,33 +211,27 @@ function prompt_for_username(msg) {
 }
 
 function prompt_for_user() {
+	if(!ip_pos || !ip_pos[2]) {
+		prompt_position("Hmm, I don't who you are!  Can you help me?");
+		return;
+	}
 	var div = document.createElement('div');
 	div.className = "bottom";
 	canvas.focus();
-	if(ip_pos && ip_pos[2]) {
-		div.appendChild(create_text("Are you in "+ip_pos[2][4] + "?&nbsp;"));
-		div.appendChild(create_anchor("Yes, good guess!", function() {
-			slide_anim(div, false, function() {
-				div.parentNode.removeChild(div);
-				prompt_guess_username(ip_pos[6]*DEG2RAD,ip_pos[7]*DEG2RAD);
-			});
-		}));
-		div.appendChild(create_text('&nbsp;'));
-		div.appendChild(create_anchor("Ha Ha not even close!", function() {
-			slide_anim(div, false, function() {
-				div.parentNode.removeChild(div);
-				prompt_position();
-			});
-		}));
-	} else {
-		div.appendChild(create_text("Hmm, I don't who you are!  Can you help me?"));
-		div.appendChild(create_anchor("OK!", function() {
-			slide_anim(div, false, function() {
-				div.parentNode.removeChild(div);
-				prompt_position();
-			});
-		}));
-	}
+	div.appendChild(create_text("Are you in "+ip_pos[2][4] + "?&nbsp;"));
+	div.appendChild(create_anchor("Yes, good guess!", function() {
+		slide_anim(div, false, function() {
+			div.parentNode.removeChild(div);
+			prompt_guess_username(ip_pos[6]*DEG2RAD,ip_pos[7]*DEG2RAD);
+		});
+	}));
+	div.appendChild(create_text('&nbsp;'));
+	div.appendChild(create_anchor("Ha Ha not even close!", function() {
+		slide_anim(div, false, function() {
+			div.parentNode.removeChild(div);
+			prompt_position();
+		});
+	}));
 	document.body.appendChild(div);
 	slide_anim(div, true);
 }

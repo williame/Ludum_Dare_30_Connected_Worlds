@@ -1,15 +1,13 @@
 
-function make_mask(uid, tex, bgcolor) {
+function make_mask(uid, tex) {
 	var w = 640, h = 480, r = 20;
 	var mask = new Uint32Array(w*h);
-	for(var i=0; i<mask.length; i++)
-		mask[i] = bgcolor;
 	var line = function(x1,y,x2) {
 		var ofs = y*w + x1;
 		for(var x=x1; x<x2; x++)
-			mask[ofs++] = 0x000000ff;
+			mask[ofs++] = 0xffffffff;
 	};
-	for(var i=0; i<10; i++) {
+	for(var i=0; i<100; i++) {
 		var x0 = parseInt(r + Math.random() * (w - r*2));
 		var y0 = parseInt(r + Math.random() * (h - r*2));
 		var x = r, y = 0;

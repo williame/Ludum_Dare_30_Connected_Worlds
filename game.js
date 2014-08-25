@@ -145,17 +145,39 @@ function update_ctx() {
 	if(!pin || !ctx.mvpMatrix)
 		return;
 	mvpInv = mat4_inverse(ctx.mvpMatrix);
+	var tl = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
+		vecN(to_mercator(mercator_bg[0],mercator_bg[1]),0)));
+	var br = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
+		vecN(to_mercator(mercator_bg[2],mercator_bg[3]),0)));
 	ctx.clear();
-	var map = getFile("image", "data/map1.jpg");
-	if(map && world_map.mask) {
-		var tl = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
-			vecN(to_mercator(mercator_bg[0],mercator_bg[1]),0)));
-		var br = mat4_vec3_multiply(mvpInv, mat4_vec3_multiply(world_map.mvpMatrix,
-			vecN(to_mercator(mercator_bg[2],mercator_bg[3]),0)));
-		ctx.drawRect(map,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
+	var map_bg = getFile("image", "data/map1.jpg");
+	var map_fg = getFile("image", "data/map1.png");
+	if(world_map.mask) {
+		ctx.insert(function() {
+			gl.enable(gl.STENCIL_TEST);
+			gl.stencilFunc(gl.NEVER, 1, 0xff);
+			gl.stencilOp(gl.REPLACE,gl.KEEP,gl.KEEP);
+		});
 		ctx.drawRect(world_map.mask,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
+		if(map_bg)
+			ctx.insert(function() {
+				gl.stencilOp(gl.KEEP,gl.KEEP,gl.KEEP);
+				gl.stencilFunc(gl.EQUAL,1,0xff);
+			});
 	}
+	if(map_bg) {
+		ctx.drawRect(map_bg,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
+	}
+	if(world_map.mask)
+		ctx.insert(function() { gl.disable(gl.STENCIL_TEST); });
 	ctx.inject(function() { world_map.draw(); });
+	if(map_fg) {
+		if(world_map.mask)
+			ctx.insert(function() { gl.enable(gl.STENCIL_TEST); });
+		ctx.drawRect(map_fg,OPAQUE,tl[0],tl[1],br[0],br[1],0,1,1,0);
+		if(world_map.mask)
+			ctx.insert(function() { gl.disable(gl.STENCIL_TEST); });
+	}
 	for(var u in users) {
 		u = users[u];
 		if(u.position)
@@ -367,7 +389,7 @@ function render() {
 	var elapsed = now() - last_draw;
 	last_draw += elapsed;
 	
-	gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+	gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
 	
 	if(anim_path.length > 1) {
 		onResize();

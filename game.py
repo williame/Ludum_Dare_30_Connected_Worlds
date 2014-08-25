@@ -5,7 +5,7 @@ from tornado.options import options
 
 import update_map, geoloc
 
-ludum_dare = 'ludum-dare-27-warmup'
+ludum_dare = 'ludum-dare-30'
 
 class LD30WebSocket(tornado.websocket.WebSocketHandler):
     closed = False
@@ -76,5 +76,5 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
 
 def init():
     geoloc.load_ip_locations()
-    update_map.load_data()
-    ### update_map.tick(ludum_dare)
+    update_map.load_data(ludum_dare)
+    update_map.tick(ludum_dare)

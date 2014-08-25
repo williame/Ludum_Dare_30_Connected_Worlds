@@ -133,6 +133,7 @@ function UIContext() {
 			"void main() {\n"+
 			"	vec4 c = texture2D(texture,tx);\n"+
 			"	gl_FragColor = colour * c;\n"+
+			"	if(gl_FragColor.a < 0.3) discard;\n"+
 			"}");
 };
 UIContext.corners = {};
@@ -154,28 +155,31 @@ UIContext.prototype = {
 		this.data = this.data.length; // better to make it crash
 		this.drawCount = 0;
 	},
-	inject: function(callback) {
+	_next_buf: function(texture) {
 		if(this.buffers.length)
 			this.buffers[this.buffers.length-1].stop = this.data.length;
-		var args = Array.prototype.slice.call(arguments,1);
-		this.buffers.push({
-			inject: callback,
-			injectArgs: args,
-			texture: "invalid",
+		var next = {
+			texture: texture,
 			start: this.data.length,
 			stop: -1,
-		});
+		};
+		this.buffers.push(next);
+		return next;
+	},
+	insert: function(callback) {
+		var next = this._next_buf("invalid");
+		next.insert = callback;
+		next.insertArgs = Array.prototype.slice.call(arguments,1);
+	},
+	inject: function(callback) {
+		var next = this._next_buf("invalid");
+		next.inject = callback;
+		next.injectArgs = Array.prototype.slice.call(arguments,1);
 	},
 	transform: function(callback) { // give it a callback that gets called at each draw to modify the mvp matrix
-		if(this.buffers.length)
-			this.buffers[this.buffers.length-1].stop = this.data.length;
-		this.buffers.push({
-			transform: callback,
-			transformArgs: arguments.length>1? Array.prototype.slice.call(arguments,1): null,
-			texture: "invalid",
-			start: this.data.length,
-			stop: -1,
-		});
+		var next = this._next_buf("invalid");
+		next.transform = callback;
+		next.transformArgs = Array.prototype.slice.call(arguments,1);
 	},
 	pushTransform: function(mvp) {
 		this.transform(this._pushTransform,mvp);
@@ -437,7 +441,13 @@ UIContext.prototype = {
 		var inited = false, len;
 		for(var buffer in this.buffers) {
 			buffer = this.buffers[buffer];
-			if(buffer.inject) {
+			if(buffer.insert) {
+				if(!inited) {
+					this._initShader(mvp,program);
+					inited = true;
+				}
+				buffer.insert.apply(this,buffer.insertArgs);
+			} else if(buffer.inject) {
 				if(inited) {
 					this._deinitShader(program);
 					inited = false;
