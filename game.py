@@ -77,4 +77,4 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
 def init():
     geoloc.load_ip_locations()
     update_map.load_data(ludum_dare)
-    update_map.tick(ludum_dare)
+    ### update_map.tick(ludum_dare)
