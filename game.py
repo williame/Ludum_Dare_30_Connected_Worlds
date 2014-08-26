@@ -17,7 +17,7 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
     def open(self):
         self.origin = self.request.headers.get("origin","")
         self.userAgent = self.request.headers.get("user-agent")
-        print "connection", geoloc.pretty_ip(self.request.remote_ip), self.origin, self.userAgent
+        logging.info("connection %s %s %s", geoloc.pretty_ip(self.request.remote_ip), self.origin, self.userAgent)
         if not any(map(self.origin.startswith, (options.origin, "http://31.192.226.244:",
             "http://localhost:", "http://williame.github.io"))):
             logging.warning("kicking out bad origin: %s" % self.origin)
@@ -61,20 +61,24 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
                     if not user:
                         user = update_map.authors_by_username.get(message.get("username","").lower())
                 if message.get("token") == "guess":
-                    logging.info("%s guesses they are %s: %s",geoloc.pretty_ip(self.request.remote_ip),uid or message.get("username"), bool(user))
+                    logging.info("%s guesses they are %s: %s",geoloc.pretty_ip(self.request.remote_ip),uid or message.get("username"), user.uid if user else "nope")
                 self.write_message(json.dumps({"user":user,"token":message.get("token"),
                     "uid":uid,"username":message.get("username")}))
             elif cmd == "set_location":
                 uid = str(message.get("uid"))
                 assert uid in update_map.authors_by_uid, uid
-                lng, lat = message["position"]
+                lat, lng = message["position"]
                 assert isinstance(lng, (int, float))
                 assert isinstance(lat, (int, float))
                 with update_map.seq_lock:
                     author = update_map.authors_by_uid[uid]
-                    if message["position"] != author.get("position"):
+                    if lng < -180 or lng > 180 or lat < -90 or lat > 90:
+                        # decided to log it, not to stop it for the user's session; let them think they're clever, that
+                        # might discourage them from being too much of a vandal.  Authentication is why we can't have nice things.
+                        logging.error("%s sets invalid location %s -> %s", uid, author.get("position"), message["position"])
+                    elif message["position"] != author.get("position"):
                         logging.info("%s sets their location %s -> %s", uid, author.get("position"), message["position"])
-                        author.position = [lng, lat]
+                        author.position = [lat, lng]
                         update_map.seq += 1
                         author.seq = update_map.seq
                         update_map.save_data()

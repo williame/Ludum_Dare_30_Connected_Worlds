@@ -1,4 +1,4 @@
-import urllib2, re, sys, json, collections, datetime, time, os, traceback
+import urllib2, re, sys, json, collections, datetime, time, os, traceback, logging
 
 regex_authors = re.compile(r'GLatLng[(]([-]?\d+[.]\d+)[,]([-]?\d+[.]\d+).+author/([^/]+)')
 regex_author_entries = re.compile(r'\.\./\.\./([^/]+)/\?action=preview\&uid=(\d+)')
@@ -43,7 +43,7 @@ data_filename = 'data.json'
 
 def save_data():
     global seq
-    print "saving to", data_filename
+    logging.info("saving to %s", data_filename)
     with open(data_filename, 'w') as f, seq_lock:
         json.dump({
                 "competitions": comps,
@@ -54,7 +54,7 @@ def save_data():
 def load_data(ludum_dare):
     global seq, comments_count
     if not os.path.exists(data_filename):
-        print "(first run!)"
+        logging.warning("(first run!)")
         return
     with open(data_filename, 'r') as f, seq_lock:
         data = json.load(f, object_hook=DotDict)
@@ -72,7 +72,12 @@ def load_data(ludum_dare):
                     del author["commenters"]
             authors_by_username[author.username] = author
             authors_by_uid[author.uid] = author
-    print "loaded",ludum_dare,"from", data_filename, len(authors_by_uid), seq, comments_count
+            if "position" in author:
+                lat, lng = author.position
+                if lng < -180 or lng > 180 or lat < -90 or lat > 90:
+                    logging.error("user %s has invalid position: %s", author.uid, author.position)
+                    # people have been vandalizing it; lets see who was affected before I put some checks into set_position
+    logging.info("loaded %s from %s %d %d %d", ludum_dare, data_filename, len(authors_by_uid), seq, comments_count)
 
 def load_author_page(lat, lng, username):
     global seq
@@ -255,7 +260,7 @@ def tick(ludum_dare):
     if prev_seq != seq:
         save_data()
     elapsed = (time.time()-start_time)
-    print "tick %d+%d, %d+%d took %dm" % (len(authors_by_uid), seq-prev_seq, comments_count, comments_count-prev_comments, int(elapsed/60))
+    logging.info("tick %d+%d, %d+%d took %dm", len(authors_by_uid), seq-prev_seq, comments_count, comments_count-prev_comments, int(elapsed/60))
     ludum_dare_id = comps[ludum_dare]
     authors_with_position = set(uid for uid,author in authors_by_uid.iteritems() if "position" in author and ludum_dare_id in author.comps)
     comments_by_positioners = 0
