@@ -149,7 +149,10 @@ function loadFile(type,path,callback) {
 		var image = new Image();
 		image.onerror = fail;
 		image.onload = function() {
-			done(createTexture(null,null,null,image));
+			if(window.createTexture) //#### TODO fix load order
+				done(createTexture(null,null,null,image));
+			else
+				window.setTimeout(image.onload, 1000);
 		};
 		image.src = path;
 	} else if(type == "g3d" && window.G3D) {

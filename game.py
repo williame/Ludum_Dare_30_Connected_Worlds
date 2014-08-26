@@ -1,4 +1,4 @@
-import random, json, time, traceback, collections
+import random, json, time, traceback, collections, logging
 
 import tornado.websocket
 from tornado.options import options
@@ -20,21 +20,9 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
         print "connection", geoloc.pretty_ip(self.request.remote_ip), self.origin, self.userAgent
         if not any(map(self.origin.startswith, (options.origin, "http://31.192.226.244:",
             "http://localhost:", "http://williame.github.io"))):
-            print "kicking out bad origin"
+            logging.warning("kicking out bad origin: %s" % self.origin)
             self.write_message('{"chat":[{"Will":"if you fork the code, you need to run your own server!"}]}')
             self.close()
-        ip, ip_lookup = self.request.remote_ip, None
-        ip_lookup = geoloc.resolve_ip(ip)
-        if update_map.debug_jobs and not ip_lookup:
-            ip = "%d.%d.%d.%d" % (random.randint(0,255),
-                random.randint(0,255),random.randint(0,255),random.randint(0,255))
-            ip_lookup = geoloc.resolve_ip(ip);
-            if(ip_lookup):
-                self.write_message(json.dumps({"chat":{
-                            "Server": "(I couldn't determine a location for %s so I pretended you were at %s)" % (self.request.remote_ip, ip),
-                }}))
-            print "(ip %s -> %s)" % (ip, ip_lookup)
-        self.write_message(json.dumps({"ip":ip,"ip_lookup":ip_lookup}));
     def on_message(self,message):
         self.lastMessage = time.time()
         try:
@@ -43,7 +31,20 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
             ludum_dare_id = update_map.comps[ludum_dare]
             cmd = message["cmd"]
             seq = message.get("seq") or 0
-            if cmd == "get_users":
+            if cmd == "ip_lookup":
+                ip, ip_lookup = self.request.remote_ip, None
+                ip_lookup = geoloc.resolve_ip(ip)
+                if update_map.debug_jobs and not ip_lookup:
+                    ip = "%d.%d.%d.%d" % (random.randint(0,255),
+                        random.randint(0,255),random.randint(0,255),random.randint(0,255))
+                    ip_lookup = geoloc.resolve_ip(ip);
+                    if(ip_lookup):
+                        self.write_message(json.dumps({"chat":{
+                                    "Server": "(I couldn't determine a location for %s so I pretended you were at %s)" % (self.request.remote_ip, ip),
+                        }}))
+                    logging.info("IP lookup: %s -> %s", ip, ip_lookup)
+                self.write_message(json.dumps({"ip":ip,"ip_lookup":ip_lookup}));
+            elif cmd == "get_users":
                 users = []
                 if seq < update_map.seq:
                     for author in update_map.authors_by_uid.values():
@@ -56,9 +57,11 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
                 if uid:
                     user = update_map.authors_by_uid.get(str(uid))
                 else:
-                    user = update_map.authors_by_username.get(message.get("username"));
+                    user = update_map.authors_by_username.get(message.get("username"))
+                    if not user:
+                        user = update_map.authors_by_username.get(message.get("username","").lower())
                 if message.get("token") == "guess":
-                    print geoloc.pretty_ip(self.request.remote_ip), "guesses they are", uid or message.get("username"), "->", bool(user)
+                    logging.info("%s guesses they are %s: %s",geoloc.pretty_ip(self.request.remote_ip),uid or message.get("username"), bool(user))
                 self.write_message(json.dumps({"user":user,"token":message.get("token"),
                     "uid":uid,"username":message.get("username")}))
             elif cmd == "set_location":
@@ -70,6 +73,7 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
                 with update_map.seq_lock:
                     author = update_map.authors_by_uid[uid]
                     if message["position"] != author.get("position"):
+                        logging.info("%s sets their location to %s", uid, message["position"])
                         author.position = [lng, lat]
                         update_map.seq += 1
                         author.seq = update_map.seq
@@ -103,7 +107,7 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
             else:
                 raise Exception("unsupported cmd: %s" % cmd)
         except:
-            print "ERROR processing",self.request.remote_ip,message
+            logging.error("ERROR processing %s: %s",self.request.remote_ip,message)
             traceback.print_exc()
             self.close()
     def write_message(self,msg):
@@ -111,7 +115,7 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
         try:
             tornado.websocket.WebSocketHandler.write_message(self,msg)
         except Exception as e:
-            print "ERROR sending join to",self.name,e
+            logging.error("ERROR sending message to %s: %s",geoloc.pretty_ip(self.request.remote_ip),e)
             self.closed = True
             self.close()
     def on_close(self):

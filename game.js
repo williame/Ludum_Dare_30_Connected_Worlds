@@ -324,7 +324,8 @@ function connect_to_server() {
 				UI.addMessage(10,name,data.chat[name]);
 			update_ctx();
 	});
-	server_websocket.send(JSON.stringify({"cmd":"get_users"}))
+	server_websocket.send(JSON.stringify({"cmd":"ip_lookup"}));
+	server_websocket.send(JSON.stringify({"cmd":"get_users"}));
 }
 
 var anim_path = [[now(),[0,0],1.5]];
