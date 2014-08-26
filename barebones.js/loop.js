@@ -9,6 +9,7 @@ function init(canvas) {
 	}
 	window.canvas = canvas;
 	try {
+		document.getElementById("errLoading").style.display = "none";
 		console.log("barebones.js is initing...");
 		try {
 			var params = {
