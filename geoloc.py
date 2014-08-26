@@ -104,9 +104,8 @@ def resolve_ip(ip):
                     location = pysmaz.decompress(location[0])
                     row[2] = json.loads(location)
                 return row
-        except (TypeError, ValueError):
-            traceback.print_exc()
-            return
+        except (TypeError, ValueError) as e:
+            print "ERROR resolving", ip, "->", e 
             
 def pretty_ip(ip):
     info = resolve_ip(ip)

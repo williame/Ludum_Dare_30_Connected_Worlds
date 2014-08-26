@@ -57,6 +57,8 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
                     user = update_map.authors_by_uid.get(str(uid))
                 else:
                     user = update_map.authors_by_username.get(message.get("username"));
+                if message.get("token") == "guess":
+                    print geoloc.pretty_ip(self.request.remote_ip), "guesses they are", uid or message.get("username"), "->", bool(user)
                 self.write_message(json.dumps({"user":user,"token":message.get("token"),
                     "uid":uid,"username":message.get("username")}))
             elif cmd == "set_location":
