@@ -89,6 +89,7 @@ var selected_user;
 var ticks = [];
 var ip_pos, user = {}, users = {};
 var last_draw = now();
+var still_in_intro = true;
 var ctx = new UIContext();
 var world_map = {
 	pMatrix: mat4_identity,
@@ -123,8 +124,8 @@ var world_map = {
 		if(!this.shapes.length)
 			return;
 		var intro_anim_t = (now()-this.start_time) / intro_millis;
-		if(intro_anim_t > 1 && loading) {
-			loading = false;
+		if(intro_anim_t > 1 && still_in_intro) {
+			still_in_intro = false;
 			prompt_intro();
 		}
 		this.program(function() {
@@ -276,12 +277,15 @@ function connect_to_server() {
 					if(u.position)
 						u.position = new LatLng(u.position[0], u.position[1]);
 					users[u.uid] = u;
-					if(user.uid == u.uid) user = u;
+					if(user.uid == u.uid) {
+						user = u;
+						make_relationships(user);
+					} else
+						make_relationships(user, u);
 				}
-				world_map.mask = make_mask(user.uid, world_map.mask);
 				update_ctx();
 			}
-			if(data.commenters) {
+			if(data.users || data.commenters) {
 				world_map.mask = make_mask(user.uid, world_map.mask);
 			}
 			if(data.user) {

@@ -1,4 +1,22 @@
 
+function make_relationships(us, them) {
+	if(them) {
+		if(!them.we_commented_on_them) {
+			for(var c in them.commenters)
+				if(them.commenters[c][0] == us.uid) {
+					them.we_commented_on_them = true;
+					break;
+				}
+		}
+	} else {
+		for(var c in us.commenters) {
+			c = us.commenters[c][0];
+			if(c in users)
+				users[c].commented_on_us = true;
+		}
+	}
+}
+
 function make_mask(uid, tex) {
 	var w = 640, h = 480, r = 20;
 	var mask = new Uint32Array(w*h);
@@ -7,22 +25,12 @@ function make_mask(uid, tex) {
 		for(var x=x1; x<x2; x++)
 			mask[ofs++] = 0xffffffff;
 	};
-	for(var c in user.commenters) {
-		c = user.commenters[c][0];
-		if(c in users)
-			users[c].commented_on_us = true;
-	}
+	make_relationships(user);
 	for(var u in users) {
 		u = users[u];
 		if(!u.position)
 			continue;
-		if(!u.we_commented_on_them) {
-			for(var c in u.commenters)
-				if(u.commenters[c][0] == uid) {
-					u.we_commented_on_them = true;
-					break;
-				}
-		}
+		make_relationships(user, u);
 		if(u == user || u.commented_on_us || u.we_commented_on_them) {
 			var	pos = u.position,
 				x0 = (w * ((pos.lng + 180) / 360)) | 0,
