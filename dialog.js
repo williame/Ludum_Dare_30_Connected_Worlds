@@ -267,7 +267,7 @@ function prompt_position(greeting) {
 		user.position = new LatLng(ip_pos[6], ip_pos[7]);
 		var wobble;
 		do {
-			wobble = new LatLng(ip_pos[6] + Math.random() * 0.1, ip_pos[7] + Math.random() * 0.01);
+			wobble = new LatLng(ip_pos[6] + Math.random() * 0.1, ip_pos[7] + Math.random() * 0.1);
 		} while(wobble.distance(user.position) > 10);
 		user.position = wobble;
 	}
