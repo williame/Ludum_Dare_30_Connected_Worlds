@@ -106,7 +106,13 @@ def resolve_ip(ip):
                 return row
         except TypeError:
             traceback.print_exc()
-            return          
+            return
+            
+def pretty_ip(ip):
+    info = resolve_ip(ip)
+    if info and info[2]:
+        return "%s (%s, %s)" % (ip, info[2][4], info[2][7])
+    return ip
 
 if __name__ == "__main__":
     load_ip_locations()

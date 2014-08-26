@@ -38,6 +38,11 @@ import tornado.web
 from tornado.options import define, options, parse_command_line
 
 import game
+
+try:
+    from geoloc import pretty_ip
+except ImportError:
+    pretty_ip = lambda x: x
     
 options.define("port",default=8888,type=int)
 options.define("branch",type=str,default="HEAD")
@@ -100,7 +105,7 @@ class BaseHandler(tornado.web.RequestHandler):
         self.log(logging.INFO,fmt,*args,**kwargs)
     def _request_summary(self):
         return "%s %s (%s %s %s)" % (self.request.method,self.request.uri,
-            self.request.remote_ip,self.auth_user or "anon",self.current_user) 
+            pretty_ip(self.request.remote_ip),self.auth_user or "anon",self.current_user) 
 
 
 class MainHandler(BaseHandler):

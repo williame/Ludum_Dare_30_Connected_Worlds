@@ -17,7 +17,7 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
     def open(self):
         self.origin = self.request.headers.get("origin","")
         self.userAgent = self.request.headers.get("user-agent")
-        print "connection",self.request.remote_ip, self.origin, self.userAgent
+        print "connection", geoloc.pretty_ip(self.request.remote_ip), self.origin, self.userAgent
         if not any(map(self.origin.startswith, (options.origin, "http://31.192.226.244:",
             "http://localhost:", "http://williame.github.io"))):
             print "kicking out bad origin"
@@ -25,7 +25,7 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
             self.close()
         ip, ip_lookup = self.request.remote_ip, None
         ip_lookup = geoloc.resolve_ip(ip)
-        if not ip_lookup:
+        if update_map.debug_jobs and not ip_lookup:
             ip = "%d.%d.%d.%d" % (random.randint(0,255),
                 random.randint(0,255),random.randint(0,255),random.randint(0,255))
             ip_lookup = geoloc.resolve_ip(ip);
