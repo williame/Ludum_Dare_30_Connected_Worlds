@@ -110,6 +110,7 @@ def load_author_page(lat, lng, username):
             authors_by_username[username] = author
             authors_by_uid[uid] = author
     else:
+        return #### 
         position = [float(lat), float(lng)]
         if author.get("position") != position:
             with seq_lock:

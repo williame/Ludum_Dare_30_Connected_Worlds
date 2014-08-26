@@ -10,6 +10,11 @@ function init(canvas) {
 	window.canvas = canvas;
 	try {
 		document.getElementById("errLoading").style.display = "none";
+		if("https:" === window.location.protocol) {
+			console.log(window.location);
+			document.getElementById("errHttps").style.display = "block";
+			return;
+		}
 		console.log("barebones.js is initing...");
 		try {
 			var params = {

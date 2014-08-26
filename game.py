@@ -73,7 +73,7 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
                 with update_map.seq_lock:
                     author = update_map.authors_by_uid[uid]
                     if message["position"] != author.get("position"):
-                        logging.info("%s sets their location to %s", uid, message["position"])
+                        logging.info("%s sets their location %s -> %s", uid, author.get("position"), message["position"])
                         author.position = [lng, lat]
                         update_map.seq += 1
                         author.seq = update_map.seq

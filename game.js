@@ -237,7 +237,6 @@ function update_ctx() {
 }
 
 function new_game() {
-	loading = true;
 	canvas.setAttribute('tabindex','0');
 	canvas.focus();
 	var bg = [0.1,0.3,0.6,1];
