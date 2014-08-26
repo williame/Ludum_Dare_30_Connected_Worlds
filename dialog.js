@@ -263,13 +263,7 @@ function prompt_position(greeting) {
 	div.appendChild(create_text("&nbsp;world...&nbsp;"));
 	if(!user.position && ip_pos) {
 		console.log("setting position from ip guess");
-		var wobble_lat = Math.random() * 0.01, wobble_lng = Math.random() * 0.01;
-		user.position = new LatLng(ip_pos[6], ip_pos[7]);
-		var wobble;
-		do {
-			wobble = new LatLng(ip_pos[6] + Math.random() * 0.1, ip_pos[7] + Math.random() * 0.1);
-		} while(wobble.distance(user.position) > 10);
-		user.position = wobble;
+		user.position = ip_pos.latlng
 	}
 	var ok_button = create_anchor("My location's ok!", function() {
 			slide_anim(div, false, function() {
@@ -381,7 +375,7 @@ function prompt_for_username(msg) {
 }
 
 function prompt_for_user() {
-	if(!ip_pos || !ip_pos[2]) {
+	if(!ip_pos) {
 		prompt_position("Hmm, I don't who you are!  Can you help me?");
 		return;
 	}
@@ -392,7 +386,7 @@ function prompt_for_user() {
 	div.appendChild(create_anchor("Yes, good guess!", function() {
 		slide_anim(div, false, function() {
 			div.parentNode.removeChild(div);
-			prompt_guess_username(new LatLng(ip_pos[6],ip_pos[7]));
+			prompt_guess_username(ip_pos.latlng);
 		});
 	}));
 	div.appendChild(create_text('&nbsp;'));

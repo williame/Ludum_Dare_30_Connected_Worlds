@@ -267,7 +267,11 @@ function connect_to_server() {
 			if("ip_lookup" in data) {
 				if(data.ip_lookup) {
 					ip_pos = data.ip_lookup;
-					go_to(new LatLng(ip_pos[6],ip_pos[7]).to_mercator(),0.3);
+					var base = new LatLng(ip_pos[6], ip_pos[7]);
+					do {
+						ip_pos.latlng = new LatLng(ip_pos[6] + Math.random() * 0.1, ip_pos[7] + Math.random() * 0.1);
+					} while(base.distance(ip_pos.latlng) > 10);
+					go_to(ip_pos.latlng.to_mercator(),0.3);
 				}
 				prompt_for_user();
 			}
