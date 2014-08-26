@@ -204,7 +204,8 @@ def load_user_page(ludum_dare, uid, img, title, name):
             print author.username,  author.uid, 'is at', author.position
     changes = (author.get("commenters", []) != commenters,
         author.get("targets") != targets,
-        author.get("img") != img)
+        author.get("img") != img,
+        not author.get("comps") or ludum_dare_id not in author.comps))
     if any(changes):
         with seq_lock:
             if not new:
@@ -215,6 +216,10 @@ def load_user_page(ludum_dare, uid, img, title, name):
             if commenters:
                 comments_count += len(commenters) - len(author.get("commenters",""))
                 author.commenters = commenters
+            if not "comps" in author:
+                author.comps = [ludum_dare_id]
+            elif ludum_dare_id not in author.comps:
+                author.comps.insert(0, ludum_dare_id):
             author.targets = targets
             author.img = img
             
