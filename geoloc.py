@@ -104,7 +104,7 @@ def resolve_ip(ip):
                     location = pysmaz.decompress(location[0])
                     row[2] = json.loads(location)
                 return row
-        except TypeError:
+        except (TypeError, ValueError):
             traceback.print_exc()
             return
             
