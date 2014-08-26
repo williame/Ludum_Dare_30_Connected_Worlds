@@ -263,7 +263,13 @@ function prompt_position(greeting) {
 	div.appendChild(create_text("&nbsp;world...&nbsp;"));
 	if(!user.position && ip_pos) {
 		console.log("setting position from ip guess");
+		var wobble_lat = Math.random() * 0.01, wobble_lng = Math.random() * 0.01;
 		user.position = new LatLng(ip_pos[6], ip_pos[7]);
+		var wobble;
+		do {
+			wobble = new LatLng(ip_pos[6] + Math.random() * 0.1, ip_pos[7] + Math.random() * 0.01);
+		} while(wobble.distance(user.position) > 10);
+		user.position = wobble;
 	}
 	var ok_button = create_anchor("My location's ok!", function() {
 			slide_anim(div, false, function() {
