@@ -5,7 +5,7 @@ regex_author_entries = re.compile(r'\.\./\.\./([^/]+)/\?action=preview\&uid=(\d+
 regex_comp_entries = re.compile(r"<a href='\?action=preview&uid=([0-9]+)'><img src='([^']*)'><div class='title'><i>(.*?)</i></div>(.*?)</a></div>")
 regex_author = re.compile(r'\.\./author/([^/]+)')
 regex_author_name = re.compile(r'<h2 class="pagetitle">About ([^(<]+)')
-regex_commenter = re.compile(r'"?action=preview&uid=(\d+)">[\w]+</a> says ...</strong></div><div><small>([^<]+)')
+regex_commenter = re.compile(r'"?action=preview&uid=(\d+)">[^<]+</a> says ...</strong></div><div><small>([^<]+)')
 regex_target = re.compile(r'href="([^"]+)" target=\'_blank\'>([^<]+)</a>')
 
 import Queue, threading, functools

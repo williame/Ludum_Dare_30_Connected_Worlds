@@ -89,8 +89,8 @@ class LD30WebSocket(tornado.websocket.WebSocketHandler):
                 commenters = []
                 author = update_map.authors_by_uid[uid]
                 for u, _ in author.get("commenters", ""):
-                    author = update_map.authors_by_uid[u]
-                    if "position" in author and ludum_dare_id in author.comps:
+                    author = update_map.authors_by_uid.get(u) # can have scaped one before the other
+                    if author and "position" in author and ludum_dare_id in author.comps:
                         commenters.append(u)
                 self.write_message(json.dumps({
                         "seq": update_map.seq,
