@@ -188,7 +188,8 @@ function update_ctx() {
 	var mask = world_map.mask;
 	if(mask) {
 		var map_bg = getFile("image", "data/map1.jpg");
-		var map_fg = getFile("image", "data/map1.png");
+		var map_fg_1 = getFile("image", "data/map1_final.0.png");
+		var map_fg_2 = getFile("image", "data/map1_final.1.png");
 		ctx.insert(function() {
 			gl.enable(gl.STENCIL_TEST);
 			gl.stencilFunc(gl.NEVER,1,0xff);
@@ -207,9 +208,12 @@ function update_ctx() {
 	}
 	ctx.inject(function() { world_map.draw(); });
 	if(mask) {
-		if(map_fg) {
+		if(map_fg_1 || map_fg_2) {
 			ctx.insert(function() { gl.enable(gl.STENCIL_TEST); });
-			draw_map(map_fg);
+			if(map_fg_1)
+				ctx.drawRect(map_fg_1,OPAQUE,bl[0],tr[1],(bl[0]+tr[0])/2,bl[1],0,0,1,1);
+			if(map_fg_2)
+				ctx.drawRect(map_fg_2,OPAQUE,(bl[0]+tr[0])/2,tr[1],tr[0],bl[1],0,0,1,1);				
 			ctx.insert(function() { gl.disable(gl.STENCIL_TEST); });
 		}
 		ctx.insert(function() { gl.blendFunc(gl.DST_COLOR,gl.ONE_MINUS_SRC_ALPHA); });

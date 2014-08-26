@@ -142,7 +142,8 @@ function prompt_intro() {
 	document.body.appendChild(div);
 	slide_anim(div, true, function() {
 		loadFile("image", "data/map1.jpg", update_ctx);
-		loadFile("image", "data/map1.png", update_ctx);
+		loadFile("image", "data/map1_final.0.png", update_ctx);
+		loadFile("image", "data/map1_final.1.png", update_ctx);
 	});
 }
 
@@ -206,7 +207,7 @@ function user_ready() {
 
 function prompt_guess_username(position) {
 	var candidates = nearest_users(position);
-	if(candidates[0][0] > 100) { //KM
+	if(!candidates.length || candidates[0][0] > 100) { //KM
 		go_to(position.to_mercator(),0.3);
 		user.position = position;
 		prompt_for_username("Unfortunately, the nearest known user is currently " + 
