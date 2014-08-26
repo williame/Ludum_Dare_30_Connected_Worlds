@@ -278,6 +278,7 @@ function connect_to_server() {
 					users[u.uid] = u;
 					if(user.uid == u.uid) user = u;
 				}
+				world_map.mask = make_mask(user.uid, world_map.mask);
 				update_ctx();
 			}
 			if(data.commenters) {
