@@ -210,8 +210,12 @@ function prompt_guess_username(position) {
 	if(!candidates.length || candidates[0][0] > 100) { //KM
 		go_to(position.to_mercator(),0.3);
 		user.position = position;
-		prompt_for_username("Unfortunately, the nearest known user is currently " + 
-			candidates[0][0].toFixed(0) + "km away, so lets get you connected ASAP!");
+		if(candidates.length)
+			prompt_for_username("Unfortunately, the nearest known user is currently " + 
+				candidates[0][0].toFixed(0) + "km away, so lets get you connected ASAP!");
+		else
+			prompt_for_username("Unfortunately, its taking a while to download all the " +
+				"other player positions (do you have a really slow connection?)")
 		return;
 	}
 	console.log("guessing",position,"->",candidates[0]);
